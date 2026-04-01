@@ -1,0 +1,28 @@
+.timeline {
+  display: grid;
+  gap: 14px;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 12px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #0b5563;
+  margin-top: 6px;
+}
+
+.content p,
+.content span {
+  margin: 0;
+}
+
+.content span {
+  color: #5f7280;
+  font-size: 0.86rem;
+}

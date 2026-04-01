@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pharmaprocure-postgres
+    environment:
+      POSTGRES_DB: pharmaprocure
+      POSTGRES_USER: pharmaprocure
+      POSTGRES_PASSWORD: pharmaprocure
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharmaprocure -d pharmaprocure"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pharmaprocure-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pharmaprocure
+      DB_USERNAME: pharmaprocure
+      DB_PASSWORD: pharmaprocure
+      RATE_LIMIT_MAX_PER_MINUTE: 300
+      RATE_LIMIT_LOGIN_MAX_PER_MINUTE: 100
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - document_storage:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pharmaprocure-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "4200:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  document_storage:

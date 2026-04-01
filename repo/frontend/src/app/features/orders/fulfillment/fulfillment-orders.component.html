@@ -1,0 +1,63 @@
+<section class="page-shell">
+  <div class="page-hero fulfillment-hero">
+    <div>
+      <div class="eyebrow">Fulfillment console</div>
+      <h1>Stage pick and pack, then dispatch partial shipments with a clear operational view.</h1>
+      <p>Orders enter fulfillment only after payment is recorded, keeping warehouse work aligned with compliance-ready approvals.</p>
+    </div>
+  </div>
+
+  <section class="fulfillment-grid">
+  <mat-card class="premium-panel queue-card">
+    <div class="section-title"><div><h2>Active fulfillment queue</h2><p>Start pick and pack or open any order for shipment creation.</p></div></div>
+    <div class="queue">
+      @for (order of orders; track order.id) {
+        <div class="queue-item premium-card">
+          <strong>{{ order.orderNumber }}</strong>
+          <div class="actions">
+            @if (order.status === 'PAYMENT_RECORDED') {
+              <button mat-button (click)="startPickPack(order.id)" [disabled]="isPickPackPending(order.id)">{{ isPickPackPending(order.id) ? 'Starting...' : 'Pick/pack' }}</button>
+            }
+            <button mat-flat-button color="primary" (click)="load(order.id)">Open</button>
+          </div>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <mat-card class="premium-panel detail-card">
+    <div class="section-title"><div><h2>{{ shipmentSequenceLabel() }}</h2><p>{{ shipmentStatusMessage() }}</p></div></div>
+    @if (!selectedOrder) {
+      <div class="empty-state">Select an order to create a partial shipment.</div>
+    } @else {
+      <div class="summary-banner">
+        <strong>{{ selectedOrder.orderNumber }}</strong>
+        <span>{{ selectedOrder.status.replaceAll('_', ' ') }}</span>
+      </div>
+      <div class="summary-banner">
+        <span>{{ selectedOrder.shipments.length }} shipment(s) already dispatched</span>
+        <span>{{ openShipmentLineCount() }} line(s) still open</span>
+      </div>
+      @if (canCreateShipment()) {
+        <form [formGroup]="shipmentForm">
+          <div formArrayName="items">
+            @for (group of shipmentItemControls; track $index) {
+              <div class="item-line premium-card" [formGroupName]="$index">
+                <span>{{ group.controls['sku'].value }} (remaining {{ group.controls['remainingToShip'].value }})</span>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ship quantity</mat-label>
+                  <input matInput type="number" min="0" formControlName="quantity" />
+                </mat-form-field>
+              </div>
+            }
+          </div>
+          <mat-form-field appearance="outline" class="full-width"><mat-label>Shipment notes</mat-label><textarea matInput rows="3" formControlName="notes"></textarea></mat-form-field>
+        </form>
+        <button mat-flat-button color="primary" (click)="createShipment()" [disabled]="isCreatingShipment">{{ isCreatingShipment ? 'Creating shipment...' : 'Create partial shipment' }}</button>
+      } @else {
+        <div class="empty-state">No additional shipment can be created from the current order state.</div>
+      }
+    }
+  </mat-card>
+</section>
+</section>

@@ -1,0 +1,12 @@
+.admin-hero h1 { max-width: 860px; }
+.eyebrow { display:inline-flex; margin-bottom:14px; padding:8px 12px; border-radius:999px; background:var(--pp-primary-soft); color:var(--pp-primary); font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.admin-grid,.form-grid { display:grid; gap:18px; }
+.admin-grid { grid-template-columns: 1fr 1fr; }
+.secondary-grid { grid-template-columns: 1fr 1fr; }
+.stack-list { display:grid; gap:12px; }
+.stack-item { width:100%; padding:14px 16px; border:0; background:var(--pp-surface); display:flex; justify-content:space-between; gap:14px; text-align:left; }
+.small { gap:10px; }
+.small-item { padding:12px 14px; }
+.status-pill { display:inline-flex; padding:8px 12px; border-radius:999px; background:rgba(17,72,90,.1); color:var(--pp-primary); font-size:.82rem; font-weight:700; }
+.nested-form { margin-top: 16px; }
+@media (max-width: 1024px) { .admin-grid,.secondary-grid { grid-template-columns:1fr; } }

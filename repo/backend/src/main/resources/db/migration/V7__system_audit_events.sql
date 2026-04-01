@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS system_audit_events (
+    id BIGSERIAL PRIMARY KEY,
+    action VARCHAR(60) NOT NULL,
+    actor_username VARCHAR(120) NOT NULL,
+    detail VARCHAR(1000),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

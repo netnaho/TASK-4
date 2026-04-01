@@ -1,0 +1,29 @@
+mat-chip {
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.status-created,
+.status-under-review {
+  background: rgba(17, 72, 90, 0.1);
+  color: #0b5563;
+  border-color: rgba(17, 72, 90, 0.16);
+}
+
+.status-approved,
+.status-payment-recorded,
+.status-pick-pack,
+.status-shipped,
+.status-received {
+  background: rgba(46, 125, 50, 0.12);
+  color: #1f6a2c;
+  border-color: rgba(46, 125, 50, 0.15);
+}
+
+.status-returned,
+.status-canceled {
+  background: rgba(192, 57, 43, 0.14);
+  color: #9d2d20;
+  border-color: rgba(192, 57, 43, 0.16);
+}

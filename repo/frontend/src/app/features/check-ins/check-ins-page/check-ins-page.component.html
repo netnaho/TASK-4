@@ -1,0 +1,171 @@
+<section class="page-shell">
+  <div class="page-hero checkin-hero">
+    <div>
+      <div class="eyebrow">Field check-ins</div>
+      <h1>Capture evidence quickly, preserve revisions, and keep compliant field records without map views.</h1>
+      <p>Check-ins store local device time, optional geolocation, signed attachments, and a visible revision trail that highlights edits.</p>
+    </div>
+  </div>
+
+  @if (loadError) {
+    <div class="empty-state">{{ loadError }}</div>
+  }
+
+  <div class="checkin-grid">
+    <mat-card class="premium-panel create-card">
+      <div class="section-title">
+        <div>
+          <h2>Quick create</h2>
+          <p>One-tap check-in creation with optional coordinates and compliant evidence attachments.</p>
+        </div>
+        <span class="action-chip">No maps shown</span>
+      </div>
+
+      <form [formGroup]="form" class="form-grid">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Comment</mat-label>
+          <textarea matInput rows="4" formControlName="commentText"></textarea>
+        </mat-form-field>
+
+        <div class="meta-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Device timestamp</mat-label>
+            <input matInput formControlName="deviceTimestamp" />
+          </mat-form-field>
+          <button mat-stroked-button color="primary" type="button" (click)="captureGeolocation()" [disabled]="isLocating">
+            {{ isLocating ? 'Capturing...' : 'Capture geolocation' }}
+          </button>
+        </div>
+
+        <div class="meta-grid">
+          <mat-form-field appearance="outline"><mat-label>Latitude</mat-label><input matInput formControlName="latitude" /></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Longitude</mat-label><input matInput formControlName="longitude" /></mat-form-field>
+        </div>
+
+        <div class="file-box premium-card">
+          <label for="checkin-files">Evidence attachments</label>
+          <input id="checkin-files" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.wav" (change)="onFilesSelected($event)" [disabled]="isCreating || isUpdating" />
+          <span>{{ selectedFiles.length }} file(s) selected</span>
+        </div>
+
+        <div class="action-row">
+          <button mat-flat-button color="primary" type="button" (click)="quickCreate()" [disabled]="isCreating || isUpdating">{{ isCreating ? 'Creating check-in...' : 'Create check-in' }}</button>
+          @if (selectedCheckIn) {
+            <button mat-stroked-button color="primary" type="button" (click)="update()" [disabled]="isCreating || isUpdating">{{ isUpdating ? 'Saving revision...' : 'Save revision' }}</button>
+          }
+        </div>
+      </form>
+    </mat-card>
+
+    <mat-card class="premium-panel list-card">
+      <div class="section-title">
+        <div>
+          <h2>Recent check-ins</h2>
+          <p>Open a record to inspect revisions, evidence, and audit actions.</p>
+        </div>
+      </div>
+      @if (checkIns.length === 0) {
+        <div class="empty-state">No check-ins recorded yet.</div>
+      } @else {
+        <div class="stack-list">
+          @for (checkIn of checkIns; track checkIn.id) {
+            <button class="stack-item premium-card" type="button" (click)="selectCheckIn(checkIn.id)">
+              <div>
+                <strong>Check-in #{{ checkIn.id }}</strong>
+                <p>{{ checkIn.commentText || 'No comment' }}</p>
+              </div>
+              <span>{{ checkIn.updatedAt | date:'short' }}</span>
+            </button>
+          }
+        </div>
+      }
+    </mat-card>
+  </div>
+
+  <mat-card class="premium-panel detail-card">
+    <div class="section-title">
+      <div>
+        <h2>Revision trail</h2>
+        <p>Edits are preserved as revisions and changed fields are visually highlighted.</p>
+      </div>
+    </div>
+
+    @if (!selectedCheckIn) {
+      <div class="empty-state">Select a check-in to inspect its revision trail and evidence.</div>
+    } @else {
+      <div class="summary-row">
+        <div class="premium-card info-card">
+          <strong>Owner</strong>
+          <p>{{ selectedCheckIn.owner }}</p>
+        </div>
+        <div class="premium-card info-card">
+          <strong>Coordinates</strong>
+          <p>{{ selectedCheckIn.latitude ?? 'Not captured' }}, {{ selectedCheckIn.longitude ?? 'Not captured' }}</p>
+        </div>
+        <div class="premium-card info-card">
+          <strong>Server received</strong>
+          <p>{{ selectedCheckIn.serverReceivedAt | date:'medium' }}</p>
+        </div>
+      </div>
+
+      <div class="detail-columns">
+        <div>
+          <h3>Revisions</h3>
+          <div class="stack-list small">
+            @for (revision of selectedCheckIn.revisions; track revision.id) {
+              <div class="stack-item premium-card revision-item">
+                <div>
+                  <strong>Revision {{ revision.revisionNumber }}</strong>
+                  <p>{{ revision.editedBy }} • {{ revision.createdAt | date:'medium' }}</p>
+                  <div class="change-list">
+                    @for (field of revision.changedFields; track field) {
+                      <span class="change-pill">{{ field }}</span>
+                    }
+                  </div>
+                </div>
+                <div class="revision-preview">
+                  <p [class.changed]="highlightClass(revision, 'commentText')">{{ revision.commentText || 'No comment' }}</p>
+                  <p [class.changed]="highlightClass(revision, 'latitude') || highlightClass(revision, 'longitude')">
+                    {{ revision.latitude ?? 'no lat' }}, {{ revision.longitude ?? 'no lng' }}
+                  </p>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div>
+          <h3>Evidence</h3>
+          @if (selectedCheckIn.attachments.length === 0) {
+            <div class="empty-state">No attachments recorded for this check-in.</div>
+          } @else {
+            <div class="stack-list small">
+              @for (attachment of selectedCheckIn.attachments; track attachment.id) {
+                <div class="stack-item premium-card attachment-item">
+                  <div>
+                    <strong>{{ attachment.originalFileName }}</strong>
+                    <p>{{ attachment.mimeType }} • {{ attachment.signatureAlgorithm }}</p>
+                    <p class="hash">{{ attachment.sha256Hash }}</p>
+                  </div>
+                  <a mat-button color="primary" [href]="attachmentUrl(attachment.id)" target="_blank" rel="noopener">Open</a>
+                </div>
+              }
+            </div>
+          }
+
+          <h3>Audit</h3>
+          <div class="stack-list small">
+            @for (audit of selectedCheckIn.auditEvents; track audit.createdAt + audit.action) {
+              <div class="stack-item premium-card small-item">
+                <div>
+                  <strong>{{ audit.action.replaceAll('_', ' ') }}</strong>
+                  <p>{{ audit.actor }} • {{ audit.createdAt | date:'medium' }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  </mat-card>
+</section>

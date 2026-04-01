@@ -1,0 +1,33 @@
+<section class="page-shell">
+  @if (loadError) {
+    <div class="empty-state">{{ loadError }}</div>
+  }
+
+  <div class="page-hero detail-hero" *ngIf="order as currentOrder">
+    <div>
+      <div class="eyebrow">Traceability hub</div>
+      <h1>{{ currentOrder.orderNumber }}</h1>
+      <p>Follow the full order lifecycle across shipment, receipt, return, and after-sales activity.</p>
+    </div>
+    @if (['APPROVED','PAYMENT_RECORDED','PICK_PACK','PARTIALLY_SHIPPED','SHIPPED'].includes(currentOrder.status)) {
+      <div class="hero-actions">
+        <button mat-stroked-button color="warn" (click)="requestProtectedCancellation()">Request protected cancellation</button>
+      </div>
+    }
+  </div>
+
+  <app-order-detail-card [order]="order"></app-order-detail-card>
+
+  @if (order) {
+    <div class="secondary-grid">
+      <mat-card class="support-card">
+        <h3>Linked records</h3>
+        <p>Shipments: {{ order.shipments.length }}</p>
+        <p>Receipts: {{ order.receipts.length }}</p>
+        <p>Returns: {{ order.returns.length }}</p>
+        <p>After-sales cases: {{ order.afterSalesCases.length }}</p>
+      </mat-card>
+      <app-order-timeline [events]="order.timeline"></app-order-timeline>
+    </div>
+  }
+</section>

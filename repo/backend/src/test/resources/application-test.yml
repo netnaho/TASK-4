@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:pharmaprocure;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+    open-in-view: false
+  flyway:
+    enabled: false
+
+application:
+  document:
+    storage-root: ${java.io.tmpdir}/pharmaprocure-test-documents
+    signature-key-path: ${java.io.tmpdir}/pharmaprocure-test-keys/document-signing.key
+
+rate:
+  limit:
+    max-per-minute: 60
+    login:
+      max-per-minute: 20

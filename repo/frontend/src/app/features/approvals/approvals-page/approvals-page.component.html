@@ -1,0 +1,95 @@
+<section class="page-shell">
+  <div class="page-hero approvals-hero">
+    <div>
+      <div class="eyebrow">Critical approvals</div>
+      <h1>Resolve protected actions with visible two-person approval, expiration tracking, and final execution state.</h1>
+      <p>Requests expire automatically after 24 hours if two different approvers do not complete approval.</p>
+    </div>
+  </div>
+
+  <div class="approval-grid">
+    <mat-card class="premium-panel">
+      <div class="section-title"><div><h2>Approval queue</h2><p>Pending, partial, expired, and executed requests are visible here.</p></div></div>
+      @if (loadError) {
+        <div class="empty-state">{{ loadError }}</div>
+      } @else if (requests.length === 0) {
+        <div class="empty-state">No critical action requests are currently visible.</div>
+      } @else {
+        <div class="stack-list">
+          @for (request of requests; track request.id) {
+            <button type="button" class="stack-item premium-card" (click)="open(request.id)">
+              <div>
+                <strong>{{ request.requestType.replaceAll('_', ' ') }}</strong>
+                <p>{{ request.targetType }} #{{ request.targetId }} • {{ request.requestedBy }}</p>
+              </div>
+              <span class="status-pill">{{ request.status.replaceAll('_', ' ') }}</span>
+            </button>
+          }
+        </div>
+      }
+    </mat-card>
+
+    <mat-card class="premium-panel detail-panel">
+      <div class="section-title"><div><h2>Request detail</h2><p>See justification, approval progress, expiration, and audit timeline.</p></div></div>
+      @if (!selectedRequest) {
+        <div class="empty-state">Select a request to inspect approval progress.</div>
+      } @else {
+        <div class="summary-grid">
+          <div class="premium-card info-card"><strong>Status</strong><p>{{ selectedRequest.status.replaceAll('_', ' ') }}</p></div>
+          <div class="premium-card info-card"><strong>Expires</strong><p>{{ selectedRequest.expiresAt | date:'medium' }}</p></div>
+          <div class="premium-card info-card"><strong>Approvals</strong><p>{{ selectedRequest.approvalCount }} / 2</p></div>
+        </div>
+
+        <div class="justification premium-card">
+          <strong>Justification</strong>
+          <p>{{ selectedRequest.justification }}</p>
+        </div>
+
+        <form [formGroup]="form" class="form-grid">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Approval comments</mat-label>
+            <textarea matInput rows="3" formControlName="comments"></textarea>
+          </mat-form-field>
+        </form>
+
+        @if ((selectedRequest.status === 'PENDING' || selectedRequest.status === 'PARTIALLY_APPROVED') && canDecide) {
+          <div class="action-row">
+            <button mat-flat-button color="primary" (click)="approve(selectedRequest.id)" [disabled]="isDecisionSubmitting">Approve</button>
+            <button mat-stroked-button color="warn" (click)="reject(selectedRequest.id)" [disabled]="isDecisionSubmitting">Reject</button>
+          </div>
+        } @else if (selectedRequest.status === 'PENDING' || selectedRequest.status === 'PARTIALLY_APPROVED') {
+          <div class="empty-state">This request is visible for audit only. Only approver roles can record decisions.</div>
+        }
+
+        <div class="detail-columns">
+          <div>
+            <h3>Approval history</h3>
+            <div class="stack-list small">
+              @for (approval of selectedRequest.approvals; track approval.id) {
+                <div class="stack-item premium-card small-item">
+                  <div>
+                    <strong>{{ approval.approver }}</strong>
+                    <p>{{ approval.decision }} • {{ approval.createdAt | date:'medium' }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+          <div>
+            <h3>Audit</h3>
+            <div class="stack-list small">
+              @for (event of selectedRequest.auditEvents; track event.createdAt + event.action) {
+                <div class="stack-item premium-card small-item">
+                  <div>
+                    <strong>{{ event.action.replaceAll('_', ' ') }}</strong>
+                    <p>{{ event.actor }} • {{ event.createdAt | date:'medium' }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </mat-card>
+  </div>
+</section>

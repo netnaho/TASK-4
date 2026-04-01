@@ -1,0 +1,43 @@
+<section class="page-shell">
+  <div class="page-hero returns-hero">
+    <div>
+      <div class="eyebrow">Exceptions and returns</div>
+      <h1>Handle damaged goods, excursion cases, and return workflows from one structured workspace.</h1>
+      <p>Buyer-led exception handling stays linked to the original order and remains visible inside the traceability record.</p>
+    </div>
+  </div>
+
+  <section class="page-grid">
+  <mat-card class="premium-panel queue-card">
+    <div class="section-title"><div><h2>Eligible orders</h2><p>Open a shipped or received order to create a return or structured after-sales case.</p></div></div>
+    <div class="queue">
+      @for (order of orders; track order.id) {
+        <div class="queue-item premium-card">
+          <strong>{{ order.orderNumber }}</strong>
+          <button mat-flat-button color="primary" (click)="load(order.id)">Open</button>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <mat-card class="premium-panel detail-card">
+    <div class="section-title"><div><h2>Exception handling</h2><p>Create a direct return or preserve a structured after-sales case for follow-up.</p></div></div>
+    @if (!selectedOrder) {
+      <div class="empty-state">Select an order to create a return or after-sales case.</div>
+    } @else {
+      <form [formGroup]="form" class="form-grid">
+        <mat-form-field appearance="outline"><mat-label>Reason code</mat-label><mat-select formControlName="reasonCode"><mat-option value="DAMAGED_GOODS">Damaged goods</mat-option><mat-option value="TEMPERATURE_EXCURSION">Temperature excursion</mat-option><mat-option value="OTHER">Other</mat-option></mat-select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Comments</mat-label><input matInput formControlName="comments" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Return line item</mat-label><mat-select formControlName="returnItemId">@for (item of selectedOrder.items; track item.id) {<mat-option [value]="item.id">{{ item.sku }} (max {{ item.receivedQuantity - item.returnedQuantity }})</mat-option>}</mat-select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Return quantity</mat-label><input matInput type="number" min="1" formControlName="returnQuantity" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>After-sales line item</mat-label><mat-select formControlName="afterSalesItemId">@for (item of selectedOrder.items; track item.id) {<mat-option [value]="item.id">{{ item.sku }}</mat-option>}</mat-select></mat-form-field>
+        <mat-form-field appearance="outline" class="full-width"><mat-label>Structured detail</mat-label><textarea matInput rows="3" formControlName="detail"></textarea></mat-form-field>
+      </form>
+      <div class="action-row">
+        <button mat-flat-button color="primary" (click)="createReturn()">Create return</button>
+        <button mat-stroked-button color="accent" (click)="createAfterSalesCase()">Create after-sales case</button>
+      </div>
+    }
+  </mat-card>
+</section>
+</section>

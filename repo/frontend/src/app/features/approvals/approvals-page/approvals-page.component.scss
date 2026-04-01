@@ -1,0 +1,13 @@
+.approvals-hero h1 { max-width: 860px; }
+.eyebrow { display:inline-flex; margin-bottom:14px; padding:8px 12px; border-radius:999px; background:var(--pp-primary-soft); color:var(--pp-primary); font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.approval-grid,.summary-grid,.detail-columns,.form-grid { display:grid; gap:18px; }
+.approval-grid { grid-template-columns: .9fr 1.1fr; }
+.summary-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.stack-list { display:grid; gap:12px; }
+.stack-item { width:100%; padding:14px 16px; border:0; text-align:left; background:var(--pp-surface); display:flex; justify-content:space-between; gap:14px; }
+.status-pill { display:inline-flex; padding:8px 12px; border-radius:999px; background:rgba(17,72,90,.1); color:var(--pp-primary); font-size:.82rem; font-weight:700; }
+.info-card,.justification { padding:16px; }
+.action-row { display:flex; gap:12px; margin:18px 0; }
+.small { gap:10px; }
+.small-item { padding:12px 14px; }
+@media (max-width: 1024px) { .approval-grid,.summary-grid,.detail-columns { grid-template-columns:1fr; } .action-row { flex-direction:column; } }

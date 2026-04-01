@@ -1,0 +1,280 @@
+<section class="page-shell">
+  <div class="page-hero document-hero">
+    <div>
+      <div class="eyebrow">Controlled Document Center</div>
+      <h1>Manage templates, drafts, approvals, preview watermarks, and archival integrity from one compliant workspace.</h1>
+      <p>Document numbering, routed approval, archive hashing, and download audit trails are handled through a single regulated document control interface.</p>
+    </div>
+  </div>
+
+  @if (loadError) {
+    <div class="empty-state">{{ loadError }}</div>
+  }
+
+  <div class="document-grid">
+    <mat-card class="premium-panel">
+      <div class="section-title">
+        <div>
+          <h2>Create draft</h2>
+          <p>Start a controlled draft with metadata tags, approval routing, and optional file attachment.</p>
+        </div>
+      </div>
+
+      <form [formGroup]="draftForm" class="form-grid" (ngSubmit)="createDraft()">
+        <mat-form-field appearance="outline">
+          <mat-label>Document type</mat-label>
+          <mat-select formControlName="documentTypeId">
+            @for (type of documentTypes; track type.id) {
+              <mat-option [value]="type.id">{{ type.name }} ({{ type.code }})</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Template</mat-label>
+          <mat-select formControlName="templateId">
+            <mat-option [value]="null">None</mat-option>
+            @for (template of templates; track template.id) {
+              <mat-option [value]="template.id">{{ template.templateName }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Title</mat-label>
+          <input matInput formControlName="title" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Metadata tags</mat-label>
+          <input matInput formControlName="metadataTags" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Draft content</mat-label>
+          <textarea matInput rows="5" formControlName="contentText"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Approval role</mat-label>
+          <mat-select formControlName="approvalRoles" multiple>
+            <mat-option value="QUALITY_REVIEWER">Quality Reviewer</mat-option>
+            <mat-option value="SYSTEM_ADMINISTRATOR">System Administrator</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="file-picker premium-card">
+          <label for="document-file">File attachment</label>
+          <input id="document-file" type="file" (change)="onFileSelected($event)" accept=".pdf,.jpg,.jpeg,.png,.wav" />
+          <span>{{ selectedFile?.name || 'No file selected' }}</span>
+        </div>
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="isActionPending(draftActionKey())">{{ isActionPending(draftActionKey()) ? 'Creating draft...' : 'Create draft' }}</button>
+      </form>
+    </mat-card>
+
+    @if (canManageTemplates) {
+      <mat-card class="premium-panel">
+        <div class="section-title">
+          <div>
+            <h2>Template management</h2>
+            <p>Admins can maintain controlled templates by document type.</p>
+          </div>
+        </div>
+
+        <form [formGroup]="templateForm" class="form-grid" (ngSubmit)="createTemplate()">
+          <mat-form-field appearance="outline">
+            <mat-label>Document type</mat-label>
+            <mat-select formControlName="documentTypeId">
+              @for (type of documentTypes; track type.id) {
+                <mat-option [value]="type.id">{{ type.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Template name</mat-label>
+            <input matInput formControlName="templateName" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Template body</mat-label>
+            <textarea matInput rows="5" formControlName="templateBody"></textarea>
+          </mat-form-field>
+          <button mat-stroked-button color="primary" type="submit" [disabled]="isActionPending(templateActionKey())">{{ isActionPending(templateActionKey()) ? 'Creating template...' : 'Create template' }}</button>
+        </form>
+      </mat-card>
+    }
+  </div>
+
+  <div class="document-grid secondary-grid">
+    <mat-card class="premium-panel">
+      <div class="section-title">
+        <div>
+          <h2>Document register</h2>
+          <p>Open a document to inspect versions, approval steps, archive state, and audit history.</p>
+        </div>
+      </div>
+      @if (documents.length === 0 && !isLoading) {
+        <div class="empty-state">No documents created yet.</div>
+      } @else {
+        <div class="stack-list">
+          @for (document of documents; track document.id) {
+            <button class="stack-item premium-card" type="button" (click)="openDocument(document.id)">
+              <div>
+                <strong>{{ document.documentNumber || 'Unnumbered draft' }}</strong>
+                <p>{{ document.title }}</p>
+              </div>
+              <span class="status-pill">{{ document.status.replaceAll('_', ' ') }}</span>
+            </button>
+          }
+        </div>
+      }
+    </mat-card>
+
+    @if (canApprove) {
+      <mat-card class="premium-panel">
+        <div class="section-title">
+          <div>
+            <h2>Approval queue</h2>
+            <p>Quality reviewers process routed approval steps here.</p>
+          </div>
+        </div>
+        @if (approvalQueue.length === 0) {
+          <div class="empty-state">No documents awaiting approval.</div>
+        } @else {
+          <div class="stack-list">
+            @for (document of approvalQueue; track document.id) {
+              <div class="stack-item premium-card approval-item">
+                <div>
+                  <strong>{{ document.documentNumber }}</strong>
+                  <p>{{ document.title }}</p>
+                </div>
+                <button mat-flat-button color="primary" (click)="approve(document.id)" [disabled]="isActionPending(documentActionKey('approve', document.id))">{{ isActionPending(documentActionKey('approve', document.id)) ? 'Approving...' : 'Approve' }}</button>
+              </div>
+            }
+          </div>
+        }
+      </mat-card>
+    }
+  </div>
+
+  <div class="document-grid secondary-grid">
+    <mat-card class="premium-panel">
+      <div class="section-title">
+        <div>
+          <h2>Archive list</h2>
+          <p>Archived records include immutable hashes and server-side signatures.</p>
+        </div>
+      </div>
+      @if (archives.length === 0) {
+        <div class="empty-state">No archived documents yet.</div>
+      } @else {
+        <div class="stack-list">
+          @for (archive of archives; track archive.id) {
+            <div class="stack-item premium-card archive-item">
+              <div>
+                <strong>{{ archive.signatureAlgorithm }}</strong>
+                <p>{{ archive.archiveHash }}</p>
+              </div>
+              <span>{{ archive.archivedAt | date:'medium' }}</span>
+            </div>
+          }
+        </div>
+      }
+    </mat-card>
+
+    <mat-card class="premium-panel detail-panel">
+      <div class="section-title">
+        <div>
+          <h2>Document detail</h2>
+          <p>Preview metadata, version history, approval steps, and archive integrity are shown below.</p>
+        </div>
+      </div>
+
+      @if (!selectedDocument) {
+        <div class="empty-state">Select a document from the register to inspect controlled details.</div>
+      } @else {
+        <div class="detail-head">
+          <div>
+            <strong>{{ selectedDocument.documentNumber || 'Unnumbered draft' }}</strong>
+            <p>{{ selectedDocument.title }}</p>
+          </div>
+          <span class="status-pill">{{ selectedDocument.status.replaceAll('_', ' ') }}</span>
+        </div>
+
+        <div class="action-row">
+          @if (selectedDocument.status === 'DRAFT') {
+            <button mat-flat-button color="primary" (click)="submitForApproval(selectedDocument.id)" [disabled]="isActionPending(documentActionKey('submit', selectedDocument.id))">{{ isActionPending(documentActionKey('submit', selectedDocument.id)) ? 'Submitting...' : 'Submit for approval' }}</button>
+          }
+          @if (selectedDocument.status === 'APPROVED' && canArchive) {
+            <button mat-stroked-button color="primary" (click)="archive(selectedDocument.id)" [disabled]="isActionPending(documentActionKey('archive', selectedDocument.id))">{{ isActionPending(documentActionKey('archive', selectedDocument.id)) ? 'Archiving...' : 'Archive' }}</button>
+          }
+          @if (selectedDocument.status === 'ARCHIVED' && canRequestCriticalAction) {
+            <button mat-stroked-button color="warn" (click)="requestDestruction(selectedDocument.id)" [disabled]="isActionPending(documentActionKey('request-destruction', selectedDocument.id))">{{ isActionPending(documentActionKey('request-destruction', selectedDocument.id)) ? 'Requesting...' : 'Request destruction' }}</button>
+            <button mat-stroked-button color="accent" (click)="requestRetentionOverride(selectedDocument.id)" [disabled]="isActionPending(documentActionKey('request-retention', selectedDocument.id))">{{ isActionPending(documentActionKey('request-retention', selectedDocument.id)) ? 'Requesting...' : 'Request retention override' }}</button>
+          }
+          <button mat-stroked-button color="primary" (click)="preview(selectedDocument.id)" [disabled]="isActionPending(documentActionKey('preview', selectedDocument.id))">{{ isActionPending(documentActionKey('preview', selectedDocument.id)) ? 'Loading preview...' : 'Preview' }}</button>
+          <a mat-button color="primary" [href]="documentCenterService.downloadUrl(selectedDocument.id)" target="_blank" rel="noopener">Download</a>
+        </div>
+
+        <div class="mini-grid">
+          <div class="premium-card info-card">
+            <strong>Metadata tags</strong>
+            <p>{{ selectedDocument.metadataTags || 'No tags' }}</p>
+          </div>
+          <div class="premium-card info-card">
+            <strong>Owner</strong>
+            <p>{{ selectedDocument.owner }}</p>
+          </div>
+          <div class="premium-card info-card" *ngIf="selectedDocument.archive as archive">
+            <strong>Archive signature</strong>
+            <p>{{ archive.signerKeyId }} • {{ archive.signatureAlgorithm }}</p>
+          </div>
+        </div>
+
+        <div class="detail-columns">
+          <div>
+            <h3>Version history</h3>
+            <div class="stack-list small">
+              @for (version of selectedDocument.versions; track version.id) {
+                <div class="stack-item premium-card small-item">
+                  <div>
+                    <strong>v{{ version.versionNumber }} • {{ version.originalFileName || 'Text draft' }}</strong>
+                    <p>{{ version.createdAt | date:'medium' }} • {{ version.createdBy }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div>
+            <h3>Approval route</h3>
+            <div class="stack-list small">
+              @for (step of selectedDocument.approvalSteps; track step.id) {
+                <div class="stack-item premium-card small-item">
+                  <div>
+                    <strong>Step {{ step.stepOrder }} • {{ step.approverRole.replaceAll('_', ' ') }}</strong>
+                    <p>{{ step.status }} {{ step.actedAt ? ('• ' + (step.actedAt | date:'short')) : '' }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3>Audit trail</h3>
+          <div class="stack-list small">
+            @for (audit of selectedDocument.auditEvents; track audit.createdAt + audit.action) {
+              <div class="stack-item premium-card small-item">
+                <div>
+                  <strong>{{ audit.action.replaceAll('_', ' ') }}</strong>
+                  <p>{{ audit.actor }} • {{ audit.createdAt | date:'medium' }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </mat-card>
+  </div>
+</section>

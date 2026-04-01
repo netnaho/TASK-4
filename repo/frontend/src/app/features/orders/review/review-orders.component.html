@@ -1,0 +1,37 @@
+<section class="page-shell">
+  <div class="page-hero review-hero">
+    <div>
+      <div class="eyebrow">Quality queue</div>
+      <h1>Review pending orders with a clear, compliance-oriented approval workspace.</h1>
+      <p>Orders waiting for review are surfaced as focused queue cards so quality decisions stay efficient and traceable.</p>
+    </div>
+  </div>
+
+  <mat-card class="premium-panel page-card">
+    <div class="section-title">
+      <div>
+        <h2>Orders awaiting review</h2>
+        <p>Approve only when the catalog mix and buyer intent are ready to progress.</p>
+      </div>
+    </div>
+
+    @if (loadError) {
+      <div class="empty-state">{{ loadError }}</div>
+    } @else if (orders.length === 0) {
+      <div class="empty-state">No orders waiting for review.</div>
+    } @else {
+      <div class="queue">
+        @for (order of orders; track order.id) {
+          <div class="queue-item premium-card">
+            <div>
+              <strong>{{ order.orderNumber }}</strong>
+              <p>{{ order.buyer }}</p>
+            </div>
+            <app-order-status-badge [status]="order.status"></app-order-status-badge>
+            <button mat-flat-button color="primary" (click)="approve(order.id)">Approve order</button>
+          </div>
+        }
+      </div>
+    }
+  </mat-card>
+</section>

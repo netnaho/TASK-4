@@ -1,0 +1,36 @@
+<section class="page-shell">
+  <div class="page-hero finance-hero">
+    <div>
+      <div class="eyebrow">Finance workbench</div>
+      <h1>Record payments with clear reference capture before orders move into fulfillment.</h1>
+      <p>Use a single clean workbench to move approved orders into the next operational state.</p>
+    </div>
+  </div>
+
+  <mat-card class="premium-panel page-card">
+    <div class="section-title">
+      <div>
+        <h2>Payment capture</h2>
+        <p>Reference and amount apply to the order selected below.</p>
+      </div>
+    </div>
+
+    <form [formGroup]="form" class="payment-form">
+      <mat-form-field appearance="outline"><mat-label>Reference</mat-label><input matInput formControlName="referenceNumber" /></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>Amount</mat-label><input matInput type="number" formControlName="amount" /></mat-form-field>
+    </form>
+
+    <div class="queue">
+      @if (loadError) {
+        <div class="empty-state">{{ loadError }}</div>
+      } @else {
+        @for (order of orders; track order.id) {
+          <div class="queue-item premium-card">
+            <strong>{{ order.orderNumber }}</strong>
+            <button mat-flat-button color="primary" (click)="record(order.id)">Record payment</button>
+          </div>
+        }
+      }
+    </div>
+  </mat-card>
+</section>

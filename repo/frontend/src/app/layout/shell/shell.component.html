@@ -1,0 +1,68 @@
+<app-loading-indicator></app-loading-indicator>
+
+<mat-sidenav-container class="shell-container">
+  <mat-sidenav [mode]="isCompact ? 'over' : 'side'" [opened]="drawerOpened" class="shell-sidenav">
+    <div class="brand-panel">
+      <div class="brand-badge">PP</div>
+      <div>
+        <div class="brand">PharmaProcure</div>
+        <p>Compliance operations console</p>
+      </div>
+    </div>
+
+    @if (user$ | async; as user) {
+      <div class="profile-card premium-card">
+        <strong>{{ user.displayName }}</strong>
+        <span>{{ user.role.replaceAll('_', ' ') }}</span>
+      </div>
+    }
+
+    <div class="nav-group">
+      <div class="nav-group__label">Operations</div>
+      <mat-nav-list>
+        @for (item of operationItems((user$ | async)?.role); track item.route) {
+          <a mat-list-item [routerLink]="item.route" routerLinkActive="active-link" (click)="closeDrawerOnSmallScreens()">
+            <mat-icon matListItemIcon [svgIcon]="item.icon"></mat-icon>
+            <span matListItemTitle>{{ item.label }}</span>
+          </a>
+        }
+      </mat-nav-list>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <div class="nav-group nav-group--secondary">
+      <div class="nav-group__label">Governance</div>
+      <mat-nav-list>
+        @for (item of governanceItems((user$ | async)?.role); track item.route) {
+          <a mat-list-item [routerLink]="item.route" routerLinkActive="active-link" (click)="closeDrawerOnSmallScreens()">
+            <mat-icon matListItemIcon [svgIcon]="item.icon"></mat-icon>
+            <span matListItemTitle>{{ item.label }}</span>
+          </a>
+        }
+      </mat-nav-list>
+    </div>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <mat-toolbar class="shell-toolbar">
+      <button mat-icon-button class="menu-button" (click)="toggleDrawer()" aria-label="Toggle navigation">
+        <mat-icon svgIcon="menu"></mat-icon>
+      </button>
+      <div class="toolbar-copy">
+        <strong>Compliance Procurement Portal</strong>
+        <span>Premium offline operations workspace</span>
+      </div>
+      <span class="spacer"></span>
+      <div class="identity" *ngIf="user$ | async as user">
+        <strong>{{ user.displayName }}</strong>
+        <span>{{ user.role.replaceAll('_', ' ') }}</span>
+      </div>
+      <button mat-stroked-button color="primary" (click)="logout()">Sign out</button>
+    </mat-toolbar>
+
+    <main class="shell-main">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

@@ -1,0 +1,19 @@
+<mat-card class="premium-panel timeline-card">
+  <h3>Lifecycle timeline</h3>
+  @if (events.length === 0) {
+    <div class="empty-state">No lifecycle events recorded yet.</div>
+  } @else {
+    <div class="timeline">
+      @for (event of events; track event.createdAt + event.eventType) {
+        <div class="event">
+          <div class="dot"></div>
+          <div class="content">
+            <strong>{{ event.eventType.replaceAll('_', ' ') }}</strong>
+            <p>{{ event.detail || (event.fromStatus ? event.fromStatus + ' -> ' + event.toStatus : event.toStatus) }}</p>
+            <span>{{ event.actor }} • {{ event.createdAt | date:'medium' }}</span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</mat-card>

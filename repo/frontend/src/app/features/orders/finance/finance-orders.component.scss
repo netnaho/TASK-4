@@ -1,0 +1,45 @@
+.page-card {
+  border-radius: var(--pp-radius-md);
+}
+
+.finance-hero h1 {
+  max-width: 740px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--pp-primary-soft);
+  color: var(--pp-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.payment-form,
+.queue {
+  display: grid;
+  gap: 14px;
+}
+
+.payment-form {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.queue-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+@media (max-width: 900px) {
+  .payment-form,
+  .queue-item {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+}

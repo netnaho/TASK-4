@@ -1,0 +1,47 @@
+@if (order) {
+  <mat-card class="premium-panel detail-card">
+    <div class="header-row">
+      <div>
+        <h2>{{ order.orderNumber }}</h2>
+        <p>{{ order.buyer }} • {{ order.createdAt | date:'medium' }}</p>
+      </div>
+      <app-order-status-badge [status]="order.status"></app-order-status-badge>
+    </div>
+
+    <div class="table-shell">
+      <table mat-table [dataSource]="order.items">
+      <ng-container matColumnDef="sku">
+        <th mat-header-cell *matHeaderCellDef>SKU</th>
+        <td mat-cell *matCellDef="let item">{{ item.sku }}</td>
+      </ng-container>
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Product</th>
+        <td mat-cell *matCellDef="let item">{{ item.name }}</td>
+      </ng-container>
+      <ng-container matColumnDef="ordered">
+        <th mat-header-cell *matHeaderCellDef>Ordered</th>
+        <td mat-cell *matCellDef="let item">{{ item.orderedQuantity }}</td>
+      </ng-container>
+      <ng-container matColumnDef="shipped">
+        <th mat-header-cell *matHeaderCellDef>Shipped</th>
+        <td mat-cell *matCellDef="let item">{{ item.shippedQuantity }}</td>
+      </ng-container>
+      <ng-container matColumnDef="received">
+        <th mat-header-cell *matHeaderCellDef>Received</th>
+        <td mat-cell *matCellDef="let item">{{ item.receivedQuantity }}</td>
+      </ng-container>
+      <ng-container matColumnDef="remaining">
+        <th mat-header-cell *matHeaderCellDef>Remaining</th>
+        <td mat-cell *matCellDef="let item">Ship {{ item.remainingToShip }} / Receive {{ item.remainingToReceive }}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      </table>
+    </div>
+
+    <div class="footer-row">
+      <span>{{ order.notes || 'No notes provided' }}</span>
+      <a mat-stroked-button color="primary" [routerLink]="['/orders', order.id]">Open traceability</a>
+    </div>
+  </mat-card>
+}

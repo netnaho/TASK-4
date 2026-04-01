@@ -1,0 +1,30 @@
+.header-row,
+.footer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.header-row p,
+.footer-row span {
+  margin: 0;
+  color: #5f7280;
+}
+
+table {
+  width: 100%;
+  margin: 16px 0;
+}
+
+.table-shell {
+  overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  .header-row,
+  .footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

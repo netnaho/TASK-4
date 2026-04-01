@@ -1,0 +1,8 @@
+### Backend health
+GET http://localhost:8080/api/health
+
+### Backend version
+GET http://localhost:8080/api/meta/version
+
+### Frontend health
+GET http://localhost:4200/health

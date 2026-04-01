@@ -1,0 +1,77 @@
+<div class="login-page">
+  <section class="login-copy">
+    <div class="eyebrow">Offline-ready enterprise workspace</div>
+    <h1>Coordinate procurement, quality, finance, and fulfillment from one premium console.</h1>
+    <p>PharmaProcure brings compliance-sensitive workflows into a secure, responsive interface built for local-network operations.</p>
+
+    <div class="value-grid">
+      <div class="value-card">
+        <strong>Traceable</strong>
+        <span>Every order, receipt, return, and exception stays visible.</span>
+      </div>
+      <div class="value-card">
+        <strong>Controlled</strong>
+        <span>RBAC, CAPTCHA, CSRF, and audit-backed authentication are already active.</span>
+      </div>
+      <div class="value-card">
+        <strong>Responsive</strong>
+        <span>Designed for desktops and tablets used across procurement operations.</span>
+      </div>
+    </div>
+  </section>
+
+  <mat-card class="login-card">
+    <div class="card-head">
+      <div class="brand-mark">PP</div>
+      <div>
+        <div class="eyebrow">Secure sign in</div>
+        <h2>PharmaProcure Portal</h2>
+        <p>Continue to the compliance procurement workspace.</p>
+      </div>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <mat-form-field appearance="outline">
+        <mat-label>Username</mat-label>
+        <input matInput formControlName="username" autocomplete="username" [disabled]="isSubmitting" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" autocomplete="current-password" [disabled]="isSubmitting" />
+        <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword" [disabled]="isSubmitting">
+          <mat-icon [svgIcon]="hidePassword ? 'eye' : 'eye-off'"></mat-icon>
+        </button>
+      </mat-form-field>
+
+      @if (captchaChallenge?.required) {
+        <div class="captcha-panel">
+          <strong>Additional verification required</strong>
+          <p>{{ captchaChallenge?.question }}</p>
+          <mat-form-field appearance="outline">
+            <mat-label>CAPTCHA answer</mat-label>
+            <input matInput formControlName="captchaAnswer" [disabled]="isSubmitting" />
+          </mat-form-field>
+        </div>
+      }
+
+      @if (loginError) {
+        <div class="error-message">{{ loginError }}</div>
+      }
+
+      @if (lockoutMessage) {
+        <div class="lockout-message">{{ lockoutMessage.replace('LOCKED_UNTIL:', 'Locked until ') }}</div>
+      }
+
+      <button mat-flat-button color="primary" type="submit" [disabled]="isSubmitting">
+        @if (isSubmitting) {
+          <mat-spinner diameter="18"></mat-spinner>
+        } @else {
+          <span>Sign in</span>
+        }
+      </button>
+    </form>
+
+    <div class="trust-note">Protected local-network access with session security and role-based controls.</div>
+  </mat-card>
+</div>

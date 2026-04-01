@@ -1,0 +1,24 @@
+.feature-card {
+  border-radius: 24px;
+  padding: 20px;
+}
+
+.content {
+  min-height: 280px;
+  display: grid;
+  place-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.content mat-icon {
+  margin: 0 auto;
+  height: 42px;
+  width: 42px;
+  color: var(--pp-primary);
+}
+
+.content p {
+  max-width: 420px;
+  margin: 0;
+}

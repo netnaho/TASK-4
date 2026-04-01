@@ -1,0 +1,56 @@
+<section class="page-shell">
+  <div class="page-hero receipts-hero">
+    <div>
+      <div class="eyebrow">Receipt workspace</div>
+      <h1>Confirm delivered quantities, resolve discrepancies, and keep receipts audit-ready.</h1>
+      <p>Receipt actions are separated from shipping so buyer-side confirmation remains explicit and traceable.</p>
+    </div>
+  </div>
+
+  <section class="page-grid">
+  <mat-card class="premium-panel queue-card">
+    <div class="section-title"><div><h2>Orders awaiting receipt</h2><p>Select an order with shipped quantities to record a partial receipt or raise a discrepancy.</p></div></div>
+    <div class="queue">
+      @for (order of orders; track order.id) {
+        <div class="queue-item premium-card">
+          <strong>{{ order.orderNumber }}</strong>
+          <button mat-flat-button color="primary" (click)="load(order.id)">Open</button>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <mat-card class="premium-panel detail-card">
+    <div class="section-title"><div><h2>Receipt actions</h2><p>Enter exact received quantities and optional discrepancy reasons per line item.</p></div></div>
+    @if (!selectedOrder) {
+      <div class="empty-state">Select a shipped order to record partial receipt or discrepancy.</div>
+    } @else {
+      <form [formGroup]="receiptForm">
+        <div formArrayName="items">
+          @for (group of receiptItemControls; track $index) {
+            <div class="item-line premium-card" [formGroupName]="$index">
+              <span>{{ group.controls['sku'].value }} (remaining {{ group.controls['remainingToReceive'].value }})</span>
+              <mat-form-field appearance="outline">
+                <mat-label>Received quantity</mat-label>
+                <input matInput type="number" min="0" formControlName="quantity" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Discrepancy reason (optional)</mat-label>
+                <input matInput formControlName="discrepancyReason" />
+              </mat-form-field>
+            </div>
+          }
+        </div>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Receipt notes</mat-label>
+          <textarea matInput rows="2" formControlName="notes"></textarea>
+        </mat-form-field>
+      </form>
+      <div class="action-row">
+        <button mat-flat-button color="primary" (click)="receivePartial(false)">Record partial receipt</button>
+        <button mat-stroked-button color="warn" (click)="receivePartial(true)">Record discrepancy receipt</button>
+      </div>
+    }
+  </mat-card>
+</section>
+</section>

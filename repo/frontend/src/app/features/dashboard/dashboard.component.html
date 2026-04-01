@@ -1,0 +1,51 @@
+<section class="page-shell">
+  <div class="page-hero dashboard-hero">
+    <div>
+      <div class="eyebrow">Operations overview</div>
+      <h1>Monitor procurement, approval, and fulfillment activity with immediate clarity.</h1>
+      <p>Live operational cues surface what needs attention first while keeping current throughput visible to every role.</p>
+    </div>
+  </div>
+
+  <section class="stat-grid">
+    @for (card of cards; track card.label) {
+      <mat-card class="stat-card dashboard-stat-card">
+        <span class="stat-card__label">{{ card.label }}</span>
+        <strong class="stat-card__value">{{ card.value }}</strong>
+        <div class="status-row">
+          <mat-chip>{{ card.status }}</mat-chip>
+          <span>{{ card.note }}</span>
+        </div>
+      </mat-card>
+    }
+  </section>
+
+  <section class="dashboard-layout">
+    <mat-card class="premium-panel queue-panel">
+      <div class="section-title">
+        <div>
+          <h2>Role-driven action queue</h2>
+          <p>Fast operational focus areas surfaced from the active workspace.</p>
+        </div>
+      </div>
+      <div class="queue-list">
+        @for (item of queue; track item) {
+          <div class="queue-item">
+            <span class="queue-index"></span>
+            <p>{{ item }}</p>
+          </div>
+        }
+      </div>
+    </mat-card>
+
+    <div class="highlights-column">
+      @for (highlight of highlights; track highlight.title) {
+        <mat-card class="premium-panel highlight-card">
+          <span class="stat-card__label">{{ highlight.title }}</span>
+          <strong class="stat-card__value">{{ highlight.value }}</strong>
+          <p>{{ highlight.description }}</p>
+        </mat-card>
+      }
+    </div>
+  </section>
+</section>

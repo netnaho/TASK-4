@@ -1,0 +1,44 @@
+.page-grid,
+.secondary-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-hero {
+  min-height: 180px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 16px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--pp-primary-soft);
+  color: var(--pp-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.secondary-grid {
+  grid-template-columns: minmax(260px, 340px) 1fr;
+}
+
+.support-card {
+  border-radius: 16px;
+}
+
+@media (max-width: 900px) {
+  .secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-hero {
+    grid-template-columns: 1fr;
+  }
+}
