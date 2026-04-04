@@ -5,11 +5,15 @@ import com.pharmaprocure.portal.dto.AdminDtos.PermissionOverviewResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.ReasonCodeResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.StateMachineConfigResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.StateMachineTransitionResponse;
+import com.pharmaprocure.portal.dto.AdminDtos.UpdateUserAccessRequest;
+import com.pharmaprocure.portal.dto.AdminDtos.UpdateStateMachineTransitionRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.UpdateDocumentTypeRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.UpdateReasonCodeRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.UserVisibilityResponse;
 import com.pharmaprocure.portal.entity.DocumentTypeEntity;
+import com.pharmaprocure.portal.entity.OrderStateMachineDefinitionEntity;
 import com.pharmaprocure.portal.entity.ReasonCodeEntity;
+import com.pharmaprocure.portal.entity.UserEntity;
 import com.pharmaprocure.portal.enums.RoleName;
 import com.pharmaprocure.portal.exception.ApiException;
 import com.pharmaprocure.portal.repository.DocumentTypeRepository;
@@ -52,6 +56,15 @@ public class AdminService {
             .toList();
     }
 
+    @Transactional
+    public UserVisibilityResponse updateUserAccess(Long id, UpdateUserAccessRequest request) {
+        UserEntity user = userRepository.findById(id)
+            .orElseThrow(() -> new ApiException(404, "User not found", List.of("userId=" + id)));
+        user.setActive(request.active());
+        UserEntity saved = userRepository.save(user);
+        return new UserVisibilityResponse(saved.getId(), saved.getUsername(), saved.getDisplayName(), saved.getRole().getName().name(), saved.isActive());
+    }
+
     @Transactional(readOnly = true)
     public List<PermissionOverviewResponse> permissions() {
         return Arrays.stream(RoleName.values())
@@ -62,10 +75,20 @@ public class AdminService {
     @Transactional(readOnly = true)
     public StateMachineConfigResponse stateMachine() {
         return new StateMachineConfigResponse(
-            stateMachineDefinitionRepository.findByActiveTrue().stream()
-                .map(item -> new StateMachineTransitionResponse(item.getFromStatus(), item.getToStatus(), item.isActive()))
+            stateMachineDefinitionRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(OrderStateMachineDefinitionEntity::getFromStatus).thenComparing(OrderStateMachineDefinitionEntity::getToStatus))
+                .map(item -> new StateMachineTransitionResponse(item.getId(), item.getFromStatus(), item.getToStatus(), item.isActive()))
                 .toList()
         );
+    }
+
+    @Transactional
+    public StateMachineTransitionResponse updateStateMachineTransition(Long id, UpdateStateMachineTransitionRequest request) {
+        OrderStateMachineDefinitionEntity entity = stateMachineDefinitionRepository.findById(id)
+            .orElseThrow(() -> new ApiException(404, "State machine transition not found", List.of("transitionId=" + id)));
+        entity.setActive(request.active());
+        OrderStateMachineDefinitionEntity saved = stateMachineDefinitionRepository.save(entity);
+        return new StateMachineTransitionResponse(saved.getId(), saved.getFromStatus(), saved.getToStatus(), saved.isActive());
     }
 
     @Transactional(readOnly = true)

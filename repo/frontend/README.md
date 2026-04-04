@@ -19,7 +19,6 @@ docker compose up --build
 Service URLs:
 
 - App: `http://localhost:4200`
-- Frontend health: `http://localhost:4200/health`
 - Backend API health through frontend proxy: `http://localhost:4200/api/health`
 - Backend API direct: `http://localhost:8080/api/health`
 

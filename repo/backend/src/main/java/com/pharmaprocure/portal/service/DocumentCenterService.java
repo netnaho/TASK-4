@@ -42,6 +42,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -52,6 +53,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 
 @Service
 public class DocumentCenterService {
@@ -71,7 +74,9 @@ public class DocumentCenterService {
     private final DocumentSignatureService documentSignatureService;
     private final DocumentAuditService documentAuditService;
     private final DocumentApprovalWorkflowService documentApprovalWorkflowService;
+    private final DocumentPreviewWatermarkService documentPreviewWatermarkService;
     private final ObjectMapper objectMapper;
+    private final Validator validator;
     private final PermissionAuthorizationService permissionAuthorizationService;
 
     public DocumentCenterService(
@@ -90,7 +95,9 @@ public class DocumentCenterService {
         DocumentSignatureService documentSignatureService,
         DocumentAuditService documentAuditService,
         DocumentApprovalWorkflowService documentApprovalWorkflowService,
+        DocumentPreviewWatermarkService documentPreviewWatermarkService,
         ObjectMapper objectMapper,
+        Validator validator,
         PermissionAuthorizationService permissionAuthorizationService
     ) {
         this.documentTypeRepository = documentTypeRepository;
@@ -108,7 +115,9 @@ public class DocumentCenterService {
         this.documentSignatureService = documentSignatureService;
         this.documentAuditService = documentAuditService;
         this.documentApprovalWorkflowService = documentApprovalWorkflowService;
+        this.documentPreviewWatermarkService = documentPreviewWatermarkService;
         this.objectMapper = objectMapper;
+        this.validator = validator;
         this.permissionAuthorizationService = permissionAuthorizationService;
     }
 
@@ -338,12 +347,21 @@ public class DocumentCenterService {
         }
         Path path = documentStorageService.resolve(version.getStoragePath());
         documentAuditService.record(document, version, currentUserService.requireCurrentUser(), DocumentAuditAction.DOWNLOADED, version.getOriginalFileName());
+        if (!download && supportsPreview(version.getMimeType())) {
+            byte[] watermarked = documentPreviewWatermarkService.apply(path, version.getMimeType(), buildWatermarkText(document));
+            ByteArrayResource resource = new ByteArrayResource(watermarked);
+            return ResponseEntity.ok()
+                .headers(new HttpHeaders())
+                .contentLength(watermarked.length)
+                .contentType(MediaType.parseMediaType(version.getMimeType()))
+                .body(resource);
+        }
         FileSystemResource resource = new FileSystemResource(path);
         HttpHeaders headers = new HttpHeaders();
         if (download) {
             headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + version.getOriginalFileName() + "\"");
         }
-        return ResponseEntity.ok().headers(headers).contentType(version.getMimeType() == null ? MediaType.APPLICATION_OCTET_STREAM : MediaType.parseMediaType(version.getMimeType())).body(resource);
+        return ResponseEntity.ok().headers(headers).contentLength(path.toFile().length()).contentType(version.getMimeType() == null ? MediaType.APPLICATION_OCTET_STREAM : MediaType.parseMediaType(version.getMimeType())).body(resource);
     }
 
     private DocumentVersionEntity createVersion(DocumentEntity document, UserEntity actor, String title, String contentText, MultipartFile file, int versionNumber) {
@@ -433,14 +451,29 @@ public class DocumentCenterService {
     }
 
     private boolean supportsPreview(String mimeType) {
-        return "application/pdf".equals(mimeType) || "image/png".equals(mimeType) || "image/jpeg".equals(mimeType) || "audio/wav".equals(mimeType);
+        return documentPreviewWatermarkService.supports(mimeType);
+    }
+
+    private String buildWatermarkText(DocumentEntity document) {
+        return currentUserService.requireCurrentUser().getUsername() + " | " + OffsetDateTime.now() + " | " + document.getDocumentNumber();
     }
 
     private <T> T parse(String payload, Class<T> type) {
         try {
-            return objectMapper.readValue(payload, type);
+            T parsed = objectMapper.readValue(payload, type);
+            validate(parsed);
+            return parsed;
         } catch (IOException ex) {
             throw new ApiException(400, "Invalid request payload", List.of("JSON_PARSE_ERROR"));
+        }
+    }
+
+    private <T> void validate(T payload) {
+        List<String> details = validator.validate(payload).stream()
+            .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+            .toList();
+        if (!details.isEmpty()) {
+            throw new ApiException(400, "Validation failed", details);
         }
     }
 }

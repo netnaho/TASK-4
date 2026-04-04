@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpContext, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { OrderDetailModel, OrderSummaryModel, ProductCatalogModel } from '../models/order.models';
+import { ManagedReasonCodeModel, OrderDetailModel, OrderSummaryModel, ProductCatalogModel } from '../models/order.models';
 import { PageResponse, PageParams } from '../models/page.model';
 import { SKIP_ERROR_TOAST } from '../interceptors/http-context.tokens';
 
@@ -27,6 +27,10 @@ export class OrderService {
 
   getOrder(orderId: number): Observable<OrderDetailModel> {
     return this.apiService.get<OrderDetailModel>(`/orders/${orderId}`, { context: this.silentContext });
+  }
+
+  listReasonCodes(codeType: 'RETURN' | 'AFTER_SALES'): Observable<ManagedReasonCodeModel[]> {
+    return this.apiService.get<ManagedReasonCodeModel[]>('/orders/reason-codes', { context: this.silentContext, params: new HttpParams().set('codeType', codeType) });
   }
 
   createOrder(body: unknown): Observable<OrderDetailModel> {

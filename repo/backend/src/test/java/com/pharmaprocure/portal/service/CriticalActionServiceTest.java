@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.pharmaprocure.portal.dto.CriticalActionDtos.CreateCriticalActionRequest;
 import com.pharmaprocure.portal.entity.CriticalActionRequestEntity;
+import com.pharmaprocure.portal.entity.DocumentEntity;
 import com.pharmaprocure.portal.entity.ProcurementOrderEntity;
 import com.pharmaprocure.portal.entity.RoleEntity;
 import com.pharmaprocure.portal.entity.UserEntity;
@@ -20,6 +21,7 @@ import com.pharmaprocure.portal.repository.CriticalActionApprovalRepository;
 import com.pharmaprocure.portal.repository.CriticalActionAuditEventRepository;
 import com.pharmaprocure.portal.repository.CriticalActionRequestRepository;
 import com.pharmaprocure.portal.repository.DocumentRepository;
+import com.pharmaprocure.portal.repository.OrderStatusHistoryRepository;
 import com.pharmaprocure.portal.repository.ProcurementOrderRepository;
 import com.pharmaprocure.portal.security.Permission;
 import com.pharmaprocure.portal.security.PermissionAuthorizationService;
@@ -38,6 +40,7 @@ class CriticalActionServiceTest {
     private final CurrentUserService currentUserService = Mockito.mock(CurrentUserService.class);
     private final CriticalActionAuditService auditService = Mockito.mock(CriticalActionAuditService.class);
     private final ProcurementOrderRepository orderRepository = Mockito.mock(ProcurementOrderRepository.class);
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository = Mockito.mock(OrderStatusHistoryRepository.class);
     private final DocumentRepository documentRepository = Mockito.mock(DocumentRepository.class);
     private final PermissionAuthorizationService permissionAuthorizationService = Mockito.mock(PermissionAuthorizationService.class);
 
@@ -48,6 +51,7 @@ class CriticalActionServiceTest {
         currentUserService,
         auditService,
         orderRepository,
+        orderStatusHistoryRepository,
         documentRepository,
         permissionAuthorizationService
     );
@@ -85,9 +89,13 @@ class CriticalActionServiceTest {
         request.setCreatedAt(OffsetDateTime.now().minusDays(2));
         request.setExpiresAt(OffsetDateTime.now().minusHours(1));
         UserEntity buyer = buyer();
+        DocumentEntity document = new DocumentEntity();
+        document.setId(3L);
+        document.setOwnerUser(buyer);
         when(currentUserService.requireCurrentUser()).thenReturn(buyer);
         when(requestRepository.findById(9L)).thenReturn(Optional.of(request));
-        when(permissionAuthorizationService.canAccessResource(buyer, Permission.CRITICAL_ACTION_VIEW, request.getRequestedBy().getId(), request.getRequestedBy().getRole().getName(), request.getRequestedBy().getOrganizationCode())).thenReturn(true);
+        when(documentRepository.findWithCurrentVersionById(3L)).thenReturn(Optional.of(document));
+        when(permissionAuthorizationService.canAccessResource(buyer, Permission.CRITICAL_ACTION_VIEW, buyer.getId(), buyer.getRole().getName(), buyer.getOrganizationCode())).thenReturn(true);
         when(approvalRepository.findByRequestIdOrderByCreatedAtAsc(any())).thenReturn(List.of());
         when(auditRepository.findByRequestIdOrderByCreatedAtAsc(any())).thenReturn(List.of());
 
@@ -109,9 +117,13 @@ class CriticalActionServiceTest {
         request.setStatus(CriticalActionStatus.PENDING);
         request.setCreatedAt(OffsetDateTime.now());
         request.setExpiresAt(OffsetDateTime.now().plusHours(4));
+        DocumentEntity document = new DocumentEntity();
+        document.setId(22L);
+        document.setOwnerUser(admin);
 
         when(currentUserService.requireCurrentUser()).thenReturn(buyer);
         when(requestRepository.findById(10L)).thenReturn(Optional.of(request));
+        when(documentRepository.findWithCurrentVersionById(22L)).thenReturn(Optional.of(document));
         when(permissionAuthorizationService.canAccessResource(buyer, Permission.CRITICAL_ACTION_VIEW, admin.getId(), RoleName.SYSTEM_ADMINISTRATOR, admin.getOrganizationCode())).thenReturn(false);
 
         ApiException exception = assertThrows(ApiException.class, () -> service.get(10L, principal(buyer)));

@@ -6,6 +6,7 @@ import com.pharmaprocure.portal.dto.OrderLifecycleDtos.AfterSalesCaseResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.CreateOrderRequest;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.OrderDetailResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.OrderItemResponse;
+import com.pharmaprocure.portal.dto.OrderLifecycleDtos.ManagedReasonCodeResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.OrderSummaryResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.PaymentResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.QuantityRequest;
@@ -47,6 +48,7 @@ import com.pharmaprocure.portal.repository.OrderReturnRepository;
 import com.pharmaprocure.portal.repository.OrderStatusHistoryRepository;
 import com.pharmaprocure.portal.repository.ProcurementOrderRepository;
 import com.pharmaprocure.portal.repository.ProductCatalogRepository;
+import com.pharmaprocure.portal.repository.ReasonCodeRepository;
 import com.pharmaprocure.portal.repository.ReceiptRepository;
 import com.pharmaprocure.portal.repository.ShipmentRepository;
 import com.pharmaprocure.portal.security.Permission;
@@ -61,6 +63,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +78,7 @@ public class OrderService {
     private final OrderPaymentRepository orderPaymentRepository;
     private final ShipmentRepository shipmentRepository;
     private final ReceiptRepository receiptRepository;
+    private final ReasonCodeRepository reasonCodeRepository;
     private final OrderReturnRepository orderReturnRepository;
     private final AfterSalesCaseRepository afterSalesCaseRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
@@ -91,6 +95,7 @@ public class OrderService {
         OrderPaymentRepository orderPaymentRepository,
         ShipmentRepository shipmentRepository,
         ReceiptRepository receiptRepository,
+        ReasonCodeRepository reasonCodeRepository,
         OrderReturnRepository orderReturnRepository,
         AfterSalesCaseRepository afterSalesCaseRepository,
         OrderStatusHistoryRepository orderStatusHistoryRepository,
@@ -106,6 +111,7 @@ public class OrderService {
         this.orderPaymentRepository = orderPaymentRepository;
         this.shipmentRepository = shipmentRepository;
         this.receiptRepository = receiptRepository;
+        this.reasonCodeRepository = reasonCodeRepository;
         this.orderReturnRepository = orderReturnRepository;
         this.afterSalesCaseRepository = afterSalesCaseRepository;
         this.orderStatusHistoryRepository = orderStatusHistoryRepository;
@@ -221,6 +227,9 @@ public class OrderService {
     @Transactional
     public OrderDetailResponse recordPayment(Long orderId, RecordPaymentRequest request) {
         ProcurementOrderEntity order = getManagedOrder(orderId, Permission.ORDER_PAYMENT_RECORD);
+        if (orderPaymentRepository.findByOrderId(orderId).isPresent() || order.isPaymentRecorded()) {
+            throw new ApiException(400, "Payment has already been recorded for this order", List.of("PAYMENT_ALREADY_RECORDED", "orderId=" + orderId));
+        }
         UserEntity financeUser = currentUserService.requireCurrentUser();
         transition(order, OrderStatus.PAYMENT_RECORDED, "PAYMENT_RECORDED", request.referenceNumber());
         OrderPaymentEntity payment = new OrderPaymentEntity();
@@ -229,7 +238,11 @@ public class OrderService {
         payment.setReferenceNumber(request.referenceNumber());
         payment.setAmount(request.amount());
         payment.setRecordedAt(OffsetDateTime.now());
-        orderPaymentRepository.save(payment);
+        try {
+            orderPaymentRepository.saveAndFlush(payment);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ApiException(400, "Payment has already been recorded for this order", List.of("PAYMENT_ALREADY_RECORDED", "orderId=" + orderId));
+        }
         order.setPaymentRecorded(true);
         order.setPaymentRecordedAt(payment.getRecordedAt());
         auditService.record("ORDER_PAYMENT_RECORDED", financeUser.getUsername(), order.getOrderNumber());
@@ -308,19 +321,22 @@ public class OrderService {
             ProcurementOrderItemEntity item = requireItem(items, quantityRequest.orderItemId());
             int remainingShipped = orderQuantityService.remainingToReceive(item.getShippedQuantity(), item.getReceivedQuantity());
             if (quantityRequest.quantity() > remainingShipped) {
-                discrepancy = true;
-                if (!request.discrepancyConfirmed()) {
-                    throw new ApiException(400, "Receipt discrepancy confirmation required", List.of("orderItemId=" + item.getId()));
-                }
+                throw new ApiException(400, "Cannot receive more than shipped quantity", List.of("orderItemId=" + item.getId()));
             }
             int maxReceivable = item.getOrderedQuantity() - item.getReceivedQuantity();
             if (quantityRequest.quantity() > maxReceivable) {
                 throw new ApiException(400, "Cannot receive more than ordered quantity", List.of("orderItemId=" + item.getId()));
             }
-            item.setReceivedQuantity(item.getReceivedQuantity() + quantityRequest.quantity());
-            if (quantityRequest.quantity() != remainingShipped || quantityRequest.quantity() != item.getOrderedQuantity()) {
-                item.setDiscrepancyFlag(discrepancy || quantityRequest.discrepancyReason() != null);
+            boolean shipmentOrderMismatch = remainingShipped != maxReceivable;
+            boolean lineHasDiscrepancy = quantityRequest.quantity() != remainingShipped
+                || shipmentOrderMismatch
+                || (quantityRequest.discrepancyReason() != null && !quantityRequest.discrepancyReason().isBlank());
+            if (lineHasDiscrepancy && !request.discrepancyConfirmed()) {
+                throw new ApiException(400, "Receipt discrepancy confirmation required", List.of("orderItemId=" + item.getId()));
             }
+            item.setReceivedQuantity(item.getReceivedQuantity() + quantityRequest.quantity());
+            item.setDiscrepancyFlag(item.isDiscrepancyFlag() || lineHasDiscrepancy);
+            discrepancy = discrepancy || lineHasDiscrepancy;
             ReceiptItemEntity receiptItem = new ReceiptItemEntity();
             receiptItem.setReceipt(receipt);
             receiptItem.setOrderItem(item);
@@ -328,7 +344,7 @@ public class OrderService {
             receiptItem.setDiscrepancyReason(quantityRequest.discrepancyReason());
             receipt.getItems().add(receiptItem);
         }
-        receipt.setHasDiscrepancy(discrepancy || request.items().stream().anyMatch(item -> item.discrepancyReason() != null && !item.discrepancyReason().isBlank()));
+        receipt.setHasDiscrepancy(discrepancy);
         receiptRepository.save(receipt);
         order.setLastReceivedAt(receipt.getReceivedAt());
         order.setUpdatedAt(OffsetDateTime.now());
@@ -348,6 +364,7 @@ public class OrderService {
             throw new ApiException(400, "Returns require a shipped or received order", List.of(order.getCurrentStatus().name()));
         }
         UserEntity buyer = currentUserService.requireCurrentUser();
+        requireActiveReasonCode("RETURN", request.reasonCode());
         Map<Long, ProcurementOrderItemEntity> items = order.getItems().stream().collect(java.util.stream.Collectors.toMap(ProcurementOrderItemEntity::getId, item -> item));
         OrderReturnEntity orderReturn = new OrderReturnEntity();
         orderReturn.setOrder(order);
@@ -379,6 +396,7 @@ public class OrderService {
     public OrderDetailResponse createAfterSalesCase(Long orderId, AfterSalesCaseCreateRequest request) {
         ProcurementOrderEntity order = getManagedOrder(orderId, Permission.ORDER_EXCEPTION_CREATE);
         UserEntity buyer = currentUserService.requireCurrentUser();
+        requireActiveReasonCode("AFTER_SALES", request.reasonCode());
         AfterSalesCaseEntity entity = new AfterSalesCaseEntity();
         entity.setOrder(order);
         entity.setCaseNumber(generateNumber("ASC"));
@@ -394,6 +412,13 @@ public class OrderService {
         afterSalesCaseRepository.save(entity);
         appendHistory(order, buyer, order.getCurrentStatus(), order.getCurrentStatus(), "AFTER_SALES_CASE_CREATED", entity.getCaseNumber());
         return toDetail(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ManagedReasonCodeResponse> listActiveReasonCodes(String codeType) {
+        return reasonCodeRepository.findByCodeTypeAndActiveTrueOrderByLabelAsc(normalizeReasonCodeType(codeType)).stream()
+            .map(item -> new ManagedReasonCodeResponse(item.getCodeType(), item.getCode(), item.getLabel()))
+            .toList();
     }
 
     private ProcurementOrderEntity getManagedOrder(Long orderId, Permission permission) {
@@ -454,6 +479,19 @@ public class OrderService {
         history.setDetail(detail);
         history.setCreatedAt(OffsetDateTime.now());
         orderStatusHistoryRepository.save(history);
+    }
+
+    private void requireActiveReasonCode(String codeType, String code) {
+        reasonCodeRepository.findByCodeTypeAndCodeAndActiveTrue(codeType, code)
+            .orElseThrow(() -> new ApiException(400, "Reason code is not active for this workflow", List.of("reasonCode=" + code, "codeType=" + codeType)));
+    }
+
+    private String normalizeReasonCodeType(String codeType) {
+        String normalized = codeType == null ? "" : codeType.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!"RETURN".equals(normalized) && !"AFTER_SALES".equals(normalized)) {
+            throw new ApiException(400, "Unsupported reason code type", List.of("codeType=" + codeType));
+        }
+        return normalized;
     }
 
     private ProcurementOrderItemEntity requireItem(Map<Long, ProcurementOrderItemEntity> items, Long orderItemId) {

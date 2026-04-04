@@ -11,7 +11,6 @@
     <div class="empty-state">Preview is not available for this file type.</div>
   } @else {
     <div class="preview-frame">
-      <div class="watermark-overlay">{{ data.preview.watermarkText }}</div>
       @if (data.preview.mimeType === 'application/pdf') {
         <object [data]="data.previewObjectUrl" type="application/pdf" aria-label="Document preview"></object>
       } @else if (data.preview.mimeType === 'image/png' || data.preview.mimeType === 'image/jpeg') {

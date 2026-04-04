@@ -29,6 +29,7 @@ Manages the end-to-end procurement process, from drafting to final fulfillment a
 | `GET` | `/api/orders` | Retrieves order summaries scoped to user's RBAC boundaries | - |
 | `POST` | `/api/orders` | Creates a new draft procurement order | `CreateOrderRequest` |
 | `GET` | `/api/orders/{id}` | Retrieves full order details, including line items and history | - |
+| `GET` | `/api/orders/reason-codes?codeType={RETURN|AFTER_SALES}` | Lists active admin-managed reason codes for return and after-sales flows | - |
 | `POST` | `/api/orders/{id}/submit-review`| Submits the drafted order for Quality/Finance review | - |
 | `POST` | `/api/orders/{id}/cancel` | Requests cancellation or directly cancels an order | - |
 | `POST` | `/api/orders/{id}/approve` | Approves or rejects a submitted order | `ReviewOrderRequest` |
@@ -36,8 +37,8 @@ Manages the end-to-end procurement process, from drafting to final fulfillment a
 | `POST` | `/api/orders/{id}/pick-pack` | Triggers the picking and packing fulfillment stage | - |
 | `POST` | `/api/orders/{id}/shipments` | Creates a shipment manifest against packed goods | `ShipmentCreateRequest`|
 | `POST` | `/api/orders/{id}/receipts` | Registers the receipt of shipped goods, handling variants | `ReceiptCreateRequest`|
-| `POST` | `/api/orders/{id}/returns` | Initiates a return request with associated reason codes | `ReturnCreateRequest`|
-| `POST` | `/api/orders/{id}/after-sales-cases`| Creates after-sales complaints (eg. temperature excursions) | `AfterSalesCaseCreateRequest`|
+| `POST` | `/api/orders/{id}/returns` | Initiates a return request using an active managed return reason code | `ReturnCreateRequest`|
+| `POST` | `/api/orders/{id}/after-sales-cases`| Creates after-sales complaints (eg. temperature excursions) using an active managed reason code | `AfterSalesCaseCreateRequest`|
 | `GET` | `/api/orders/{id}/traceability` | Generates traceability graph data for compliance | - |
 
 ---
@@ -69,13 +70,15 @@ Manages compliance-controlled documents, versioning, routing, and secured downlo
 | `POST` | `/api/documents/{id}/approve` | Grants approval/rejection with inline signature | `ApproveDocumentRequest` |
 | `POST` | `/api/documents/{id}/archive` | Formally moves approved document to archive state | - |
 | `GET` | `/api/documents/{id}/preview` | Renders a watermarked preview of the document | - |
-| `GET` | `/api/documents/{id}/content` | Retrieves raw content without triggering auditable events | - |
-| `GET` | `/api/documents/{id}/download` | Audited file download containing server-side metadata signature | - |
+| `GET` | `/api/documents/{id}/content` | Retrieves inline preview bytes; supported preview types are returned with server-applied watermarking | - |
+| `GET` | `/api/documents/{id}/download` | Retrieves the original stored artifact and records an auditable download event | - |
 
 ---
 
 ## 5. Field Check-Ins `/api/check-ins`
 Manages evidence logging and immutable versioning for offline inspections.
+
+Multipart payload JSON includes `commentText`, `deviceTimestamp`, and optional `latitude` / `longitude` values alongside uploaded attachments.
 
 | Method | Endpoint | Description | Request Body |
 |--------|----------|-------------|--------------|
@@ -88,7 +91,7 @@ Manages evidence logging and immutable versioning for offline inspections.
 ---
 
 ## 6. Critical Actions / Dual Approval `/api/critical-actions`
-Facilitates mandatory multi-party approvals (e.g. document destruction, order override).
+Facilitates mandatory multi-party approvals (e.g. document destruction, order override). Approval completion requires one quality approver and one finance-or-system-administrator approver.
 
 | Method | Endpoint | Description | Request Body |
 |--------|----------|-------------|--------------|
@@ -100,16 +103,18 @@ Facilitates mandatory multi-party approvals (e.g. document destruction, order ov
 ---
 
 ## 7. System Administration `/api/admin`
-Controls system metadata, reference codes, state machines, and access control overviews.
+Controls user activation/suspension, permission overview, state-transition activation, document-type settings, and managed reason-code catalogs.
 
 | Method | Endpoint | Description | Request Body |
 |--------|----------|-------------|--------------|
 | `GET` | `/api/admin/users` | Lists global user configurations and mappings | - |
-| `GET` | `/api/admin/permissions` | Lists exhaustive system permission trees | - |
-| `GET` | `/api/admin/state-machine` | Exposes the workflow state machine configuration matrices | - |
+| `PUT` | `/api/admin/users/{id}` | Activates or suspends a user account | `UpdateUserAccessRequest` |
+| `GET` | `/api/admin/permissions` | Lists the currently enforced role-permission matrix | - |
+| `GET` | `/api/admin/state-machine` | Exposes the workflow state machine configuration matrix | - |
+| `PUT` | `/api/admin/state-machine/{id}` | Activates or deactivates a specific state transition | `UpdateStateMachineTransitionRequest` |
 | `GET` | `/api/admin/document-types` | Administration of existing document type definitions | - |
 | `PUT` | `/api/admin/document-types/{id}` | Edits settings of a specific documentary type | `UpdateDocumentTypeRequest`|
-| `GET` | `/api/admin/reason-codes` | Lists globally configurable reason codes (returns/damage) | - |
+| `GET` | `/api/admin/reason-codes` | Lists globally configurable reason codes (returns/after-sales) | - |
 | `POST` | `/api/admin/reason-codes` | Creates a new system-wide reason code | `CreateReasonCodeRequest` |
 | `PUT` | `/api/admin/reason-codes/{id}` | Updates existing reason code (e.g. deactivates it) | `UpdateReasonCodeRequest` |
 

@@ -7,6 +7,7 @@ import com.pharmaprocure.portal.dto.CriticalActionDtos.CriticalActionRequestResp
 import com.pharmaprocure.portal.entity.CriticalActionApprovalEntity;
 import com.pharmaprocure.portal.entity.CriticalActionRequestEntity;
 import com.pharmaprocure.portal.entity.DocumentEntity;
+import com.pharmaprocure.portal.entity.OrderStatusHistoryEntity;
 import com.pharmaprocure.portal.entity.ProcurementOrderEntity;
 import com.pharmaprocure.portal.entity.UserEntity;
 import com.pharmaprocure.portal.enums.DataScope;
@@ -17,17 +18,21 @@ import com.pharmaprocure.portal.enums.CriticalActionStatus;
 import com.pharmaprocure.portal.enums.CriticalActionTargetType;
 import com.pharmaprocure.portal.enums.DocumentStatus;
 import com.pharmaprocure.portal.enums.OrderStatus;
+import com.pharmaprocure.portal.enums.RoleName;
 import com.pharmaprocure.portal.exception.ApiException;
 import com.pharmaprocure.portal.repository.CriticalActionApprovalRepository;
 import com.pharmaprocure.portal.repository.CriticalActionAuditEventRepository;
 import com.pharmaprocure.portal.repository.CriticalActionRequestRepository;
 import com.pharmaprocure.portal.repository.DocumentRepository;
+import com.pharmaprocure.portal.repository.OrderStatusHistoryRepository;
 import com.pharmaprocure.portal.repository.ProcurementOrderRepository;
 import com.pharmaprocure.portal.security.Permission;
 import com.pharmaprocure.portal.security.PermissionAuthorizationService;
 import com.pharmaprocure.portal.security.UserPrincipal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -42,6 +47,7 @@ public class CriticalActionService {
     private final CurrentUserService currentUserService;
     private final CriticalActionAuditService auditService;
     private final ProcurementOrderRepository orderRepository;
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final DocumentRepository documentRepository;
     private final PermissionAuthorizationService permissionAuthorizationService;
 
@@ -52,6 +58,7 @@ public class CriticalActionService {
         CurrentUserService currentUserService,
         CriticalActionAuditService auditService,
         ProcurementOrderRepository orderRepository,
+        OrderStatusHistoryRepository orderStatusHistoryRepository,
         DocumentRepository documentRepository,
         PermissionAuthorizationService permissionAuthorizationService
     ) {
@@ -61,6 +68,7 @@ public class CriticalActionService {
         this.currentUserService = currentUserService;
         this.auditService = auditService;
         this.orderRepository = orderRepository;
+        this.orderStatusHistoryRepository = orderStatusHistoryRepository;
         this.documentRepository = documentRepository;
         this.permissionAuthorizationService = permissionAuthorizationService;
     }
@@ -68,14 +76,16 @@ public class CriticalActionService {
     @Transactional
     public Page<CriticalActionRequestResponse> list(Pageable pageable, CriticalActionStatus statusFilter) {
         UserEntity actor = currentUserService.requireCurrentUser();
-        DataScope scope = permissionAuthorizationService.requireDataScope(actor, Permission.CRITICAL_ACTION_VIEW);
-        Long requestedById = (scope == DataScope.SELF) ? actor.getId() : null;
-        String orgCode = (scope == DataScope.ORGANIZATION) ? actor.getOrganizationCode() : null;
-        Page<CriticalActionRequestEntity> requests = requestRepository.findFiltered(requestedById, orgCode, statusFilter, pageable);
-        return requests.map(request -> {
+        permissionAuthorizationService.requireDataScope(actor, Permission.CRITICAL_ACTION_VIEW);
+        Page<CriticalActionRequestEntity> requests = requestRepository.findAll(pageable);
+        List<CriticalActionRequestResponse> visible = requests.getContent().stream()
+            .filter(request -> statusFilter == null || request.getStatus() == statusFilter)
+            .filter(request -> canAccessTarget(actor, request, Permission.CRITICAL_ACTION_VIEW))
+            .map(request -> {
             expireIfNeeded(request);
             return toResponse(request);
-        });
+        }).toList();
+        return new PageImpl<>(visible, pageable, visible.size());
     }
 
     @Transactional
@@ -105,6 +115,7 @@ public class CriticalActionService {
     public CriticalActionRequestResponse decide(Long requestId, CriticalActionDecision decision, String comments) {
         UserEntity actor = currentUserService.requireCurrentUser();
         CriticalActionRequestEntity request = requireRequest(requestId, actor, Permission.CRITICAL_ACTION_VIEW);
+        requireCrossRoleApprover(actor);
         expireIfNeeded(request);
         if (request.getStatus() == CriticalActionStatus.EXPIRED) {
             throw new ApiException(400, "Critical action request has expired", List.of("requestId=" + requestId));
@@ -112,8 +123,13 @@ public class CriticalActionService {
         if (request.getStatus() == CriticalActionStatus.EXECUTED || request.getStatus() == CriticalActionStatus.REJECTED) {
             throw new ApiException(400, "Critical action request is already resolved", List.of(request.getStatus().name()));
         }
-        if (approvalRepository.findByRequestIdAndApproverUserId(requestId, actor.getId()).isPresent()) {
-          throw new ApiException(400, "The same user cannot approve twice", List.of("SAME_USER_REJECTION"));
+        List<CriticalActionApprovalEntity> existingApprovals = approvalRepository.findByRequestIdOrderByCreatedAtAsc(requestId);
+        if (existingApprovals.stream().anyMatch(approval -> approval.getApproverUser().getId().equals(actor.getId()))) {
+            throw new ApiException(400, "The same user cannot approve twice", List.of("SAME_USER_REJECTION"));
+        }
+        if (decision == CriticalActionDecision.APPROVE
+            && existingApprovals.stream().anyMatch(approval -> approval.getDecision() == CriticalActionDecision.APPROVE && approvalLane(approval.getApproverUser()) == approvalLane(actor))) {
+            throw new ApiException(400, "Critical actions require one quality approval and one finance or system administrator approval", List.of("CROSS_ROLE_APPROVAL_REQUIRED"));
         }
 
         CriticalActionApprovalEntity approval = new CriticalActionApprovalEntity();
@@ -123,6 +139,8 @@ public class CriticalActionService {
         approval.setComments(comments);
         approval.setCreatedAt(OffsetDateTime.now());
         approvalRepository.save(approval);
+        List<CriticalActionApprovalEntity> approvals = new ArrayList<>(existingApprovals);
+        approvals.add(approval);
 
         if (decision == CriticalActionDecision.REJECT) {
             request.setStatus(CriticalActionStatus.REJECTED);
@@ -132,16 +150,15 @@ public class CriticalActionService {
             return toResponse(request);
         }
 
-        List<CriticalActionApprovalEntity> approvals = approvalRepository.findByRequestIdOrderByCreatedAtAsc(requestId);
-        if (approvals.size() == 1) {
-            request.setStatus(CriticalActionStatus.PARTIALLY_APPROVED);
-            auditService.record(request, actor, CriticalActionAuditAction.APPROVED, "First approval recorded");
-        } else if (approvals.size() >= 2) {
+        if (hasRequiredApprovals(approvals)) {
             request.setStatus(CriticalActionStatus.APPROVED);
             request.setResolvedAt(OffsetDateTime.now());
-            request.setResolutionNote("Two distinct approvals recorded");
-            auditService.record(request, actor, CriticalActionAuditAction.APPROVED, "Second approval recorded");
+            request.setResolutionNote("Quality and finance or system administrator approvals recorded");
+            auditService.record(request, actor, CriticalActionAuditAction.APPROVED, "Cross-role approval completed");
             execute(request, actor);
+        } else {
+            request.setStatus(CriticalActionStatus.PARTIALLY_APPROVED);
+            auditService.record(request, actor, CriticalActionAuditAction.APPROVED, actor.getRole().getName().name() + " approval recorded");
         }
         return toResponse(request);
     }
@@ -171,8 +188,10 @@ public class CriticalActionService {
     private void executeOrderCancellation(CriticalActionRequestEntity request, UserEntity actor) {
         ProcurementOrderEntity order = orderRepository.findWithItemsById(request.getTargetId())
             .orElseThrow(() -> new ApiException(404, "Order not found", List.of("orderId=" + request.getTargetId())));
+        OrderStatus fromStatus = order.getCurrentStatus();
         order.setCurrentStatus(OrderStatus.CANCELED);
         order.setUpdatedAt(OffsetDateTime.now());
+        appendOrderHistory(order, actor, fromStatus, OrderStatus.CANCELED, "CRITICAL_ACTION_ORDER_CANCELED", "Canceled after quality and finance approval");
     }
 
     private void executeDocumentDestruction(CriticalActionRequestEntity request, UserEntity actor) {
@@ -236,14 +255,7 @@ public class CriticalActionService {
     private CriticalActionRequestEntity requireRequest(Long requestId, UserEntity actor, Permission permission) {
         CriticalActionRequestEntity request = requestRepository.findById(requestId)
             .orElseThrow(() -> new ApiException(404, "Critical action request not found", List.of("requestId=" + requestId)));
-        boolean allowed = permissionAuthorizationService.canAccessResource(
-            actor,
-            permission,
-            request.getRequestedBy().getId(),
-            request.getRequestedBy().getRole().getName(),
-            request.getRequestedBy().getOrganizationCode()
-        );
-        if (!allowed) {
+        if (!canAccessTarget(actor, request, permission)) {
             throw new ApiException(403, "Access denied", List.of("CRITICAL_ACTION_SCOPE_RESTRICTION", "requestId=" + requestId));
         }
         return request;
@@ -256,6 +268,50 @@ public class CriticalActionService {
             request.setResolutionNote("Expired after 24 hours without two approvals");
             auditService.record(request, request.getRequestedBy(), CriticalActionAuditAction.EXPIRED, request.getResolutionNote());
         }
+    }
+
+    private void requireCrossRoleApprover(UserEntity actor) {
+        RoleName roleName = actor.getRole().getName();
+        if (approvalLane(actor) == null) {
+            throw new ApiException(403, "Critical actions require quality and finance or system administrator segregation", List.of("CROSS_ROLE_APPROVER_REQUIRED"));
+        }
+    }
+
+    private boolean hasRequiredApprovals(List<CriticalActionApprovalEntity> approvals) {
+        boolean qualityApproved = approvals.stream().anyMatch(approval -> approval.getDecision() == CriticalActionDecision.APPROVE && "QUALITY".equals(approvalLane(approval.getApproverUser())));
+        boolean financeOrAdminApproved = approvals.stream().anyMatch(approval -> approval.getDecision() == CriticalActionDecision.APPROVE && "FINANCE_ADMIN".equals(approvalLane(approval.getApproverUser())));
+        return qualityApproved && financeOrAdminApproved;
+    }
+
+    private boolean canAccessTarget(UserEntity actor, CriticalActionRequestEntity request, Permission permission) {
+        return switch (request.getTargetType()) {
+            case ORDER -> orderRepository.findWithItemsById(request.getTargetId())
+                .map(order -> permissionAuthorizationService.canAccessResource(actor, permission, order.getBuyer().getId(), order.getBuyer().getRole().getName(), order.getBuyer().getOrganizationCode()))
+                .orElse(false);
+            case DOCUMENT -> documentRepository.findWithCurrentVersionById(request.getTargetId())
+                .map(document -> permissionAuthorizationService.canAccessResource(actor, permission, document.getOwnerUser().getId(), document.getOwnerUser().getRole().getName(), document.getOwnerUser().getOrganizationCode()))
+                .orElse(false);
+        };
+    }
+
+    private String approvalLane(UserEntity actor) {
+        return switch (actor.getRole().getName()) {
+            case QUALITY_REVIEWER -> "QUALITY";
+            case FINANCE, SYSTEM_ADMINISTRATOR -> "FINANCE_ADMIN";
+            default -> null;
+        };
+    }
+
+    private void appendOrderHistory(ProcurementOrderEntity order, UserEntity actor, OrderStatus from, OrderStatus to, String eventType, String detail) {
+        OrderStatusHistoryEntity history = new OrderStatusHistoryEntity();
+        history.setOrder(order);
+        history.setActorUser(actor);
+        history.setFromStatus(from == null ? null : from.name());
+        history.setToStatus(to.name());
+        history.setEventType(eventType);
+        history.setDetail(detail);
+        history.setCreatedAt(OffsetDateTime.now());
+        orderStatusHistoryRepository.save(history);
     }
 
     private CriticalActionRequestResponse toResponse(CriticalActionRequestEntity request) {

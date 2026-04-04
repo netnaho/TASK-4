@@ -7,8 +7,11 @@ import com.pharmaprocure.portal.dto.CheckInDtos.CreateCheckInRequest;
 import com.pharmaprocure.portal.dto.CheckInDtos.UpdateCheckInRequest;
 import com.pharmaprocure.portal.exception.ApiException;
 import com.pharmaprocure.portal.service.CheckInService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,10 +33,12 @@ public class CheckInController {
 
     private final CheckInService checkInService;
     private final ObjectMapper objectMapper;
+    private final Validator validator;
 
-    public CheckInController(CheckInService checkInService, ObjectMapper objectMapper) {
+    public CheckInController(CheckInService checkInService, ObjectMapper objectMapper, Validator validator) {
         this.checkInService = checkInService;
         this.objectMapper = objectMapper;
+        this.validator = validator;
     }
 
     @GetMapping
@@ -69,9 +74,20 @@ public class CheckInController {
 
     private <T> T parse(String payload, Class<T> type) {
         try {
-            return objectMapper.readValue(payload, type);
+            T parsed = objectMapper.readValue(payload, type);
+            validate(parsed);
+            return parsed;
         } catch (IOException ex) {
             throw new ApiException(400, "Invalid request payload", List.of("JSON_PARSE_ERROR"));
+        }
+    }
+
+    private <T> void validate(T payload) {
+        Set<ConstraintViolation<T>> violations = validator.validate(payload);
+        if (!violations.isEmpty()) {
+            throw new ApiException(400, "Validation failed", violations.stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                .toList());
         }
     }
 }

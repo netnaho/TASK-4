@@ -3,7 +3,7 @@ import { HttpContext } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
 import { SKIP_ERROR_TOAST } from '../interceptors/http-context.tokens';
-import { ReasonCodeModel, AdminUserModel, PermissionOverviewModel, StateMachineConfigModel } from '../models/admin.models';
+import { ReasonCodeModel, AdminUserModel, PermissionOverviewModel, StateMachineConfigModel, StateMachineTransitionModel } from '../models/admin.models';
 import { DocumentTypeModel } from '../models/document.models';
 
 @Injectable({ providedIn: 'root' })
@@ -16,12 +16,20 @@ export class AdminService {
     return this.apiService.get<AdminUserModel[]>('/admin/users', { context: this.silentContext });
   }
 
+  updateUserAccess(id: number, body: unknown): Observable<AdminUserModel> {
+    return this.apiService.put<AdminUserModel>(`/admin/users/${id}`, body);
+  }
+
   permissions(): Observable<PermissionOverviewModel[]> {
     return this.apiService.get<PermissionOverviewModel[]>('/admin/permissions', { context: this.silentContext });
   }
 
   stateMachine(): Observable<StateMachineConfigModel> {
     return this.apiService.get<StateMachineConfigModel>('/admin/state-machine', { context: this.silentContext });
+  }
+
+  updateStateMachineTransition(id: number, body: unknown): Observable<StateMachineTransitionModel> {
+    return this.apiService.put<StateMachineTransitionModel>(`/admin/state-machine/${id}`, body);
   }
 
   documentTypes(): Observable<DocumentTypeModel[]> {

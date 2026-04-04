@@ -122,19 +122,13 @@ class IdempotencyIntegrationTest extends AbstractMockMvcIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PAYMENT_RECORDED"));
 
-        // Second payment recording fails — the system rejects duplicate payment records
-        int secondStatus = mockMvc.perform(post("/api/orders/{orderId}/record-payment", order.getId())
+        mockMvc.perform(post("/api/orders/{orderId}/record-payment", order.getId())
                 .with(authenticated(finance))
                 .with(csrf())
                 .contentType(APPLICATION_JSON)
                 .content(paymentBody))
-            .andReturn().getResponse().getStatus();
-
-        // Should fail with either 400 (business rule) or 500 (constraint violation)
-        org.junit.jupiter.api.Assertions.assertTrue(
-            secondStatus == 400 || secondStatus == 500,
-            "Second payment should be rejected, got " + secondStatus
-        );
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.details[0]").value("PAYMENT_ALREADY_RECORDED"));
     }
 
     @Test

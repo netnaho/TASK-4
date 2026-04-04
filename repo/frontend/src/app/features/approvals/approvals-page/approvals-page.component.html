@@ -58,7 +58,7 @@
             <button mat-stroked-button color="warn" (click)="reject(selectedRequest.id)" [disabled]="isDecisionSubmitting">Reject</button>
           </div>
         } @else if (selectedRequest.status === 'PENDING' || selectedRequest.status === 'PARTIALLY_APPROVED') {
-          <div class="empty-state">This request is visible for audit only. Only approver roles can record decisions.</div>
+          <div class="empty-state">This request is visible for audit only. Only quality, finance, or system administrator approver roles can record decisions.</div>
         }
 
         <div class="detail-columns">

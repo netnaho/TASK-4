@@ -12,6 +12,7 @@ export interface PermissionOverviewModel {
 }
 
 export interface StateMachineTransitionModel {
+  id: number;
   fromStatus: string;
   toStatus: string;
   active: boolean;

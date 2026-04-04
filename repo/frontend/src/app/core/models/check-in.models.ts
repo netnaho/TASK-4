@@ -12,6 +12,7 @@ export interface CheckInSummaryModel {
 
 export interface CheckInAttachmentModel {
   id: number;
+  revisionId: number;
   originalFileName: string;
   mimeType: string;
   fileSizeBytes: number;
@@ -30,6 +31,7 @@ export interface CheckInRevisionModel {
   latitude?: number;
   longitude?: number;
   changedFields: string[];
+  attachments: CheckInAttachmentModel[];
   editedBy: string;
   createdAt: string;
 }

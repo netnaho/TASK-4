@@ -4,6 +4,9 @@ import com.pharmaprocure.portal.dto.AdminDtos.CreateReasonCodeRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.PermissionOverviewResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.ReasonCodeResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.StateMachineConfigResponse;
+import com.pharmaprocure.portal.dto.AdminDtos.StateMachineTransitionResponse;
+import com.pharmaprocure.portal.dto.AdminDtos.UpdateUserAccessRequest;
+import com.pharmaprocure.portal.dto.AdminDtos.UpdateStateMachineTransitionRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.UpdateDocumentTypeRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.UpdateReasonCodeRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.UserVisibilityResponse;
@@ -37,6 +40,11 @@ public class AdminController {
         return ResponseEntity.ok(adminService.users());
     }
 
+    @PutMapping("/users/{id}")
+    public ResponseEntity<UserVisibilityResponse> updateUserAccess(@PathVariable Long id, @Valid @RequestBody UpdateUserAccessRequest request) {
+        return ResponseEntity.ok(adminService.updateUserAccess(id, request));
+    }
+
     @GetMapping("/permissions")
     public ResponseEntity<List<PermissionOverviewResponse>> permissions() {
         return ResponseEntity.ok(adminService.permissions());
@@ -45,6 +53,11 @@ public class AdminController {
     @GetMapping("/state-machine")
     public ResponseEntity<StateMachineConfigResponse> stateMachine() {
         return ResponseEntity.ok(adminService.stateMachine());
+    }
+
+    @PutMapping("/state-machine/{id}")
+    public ResponseEntity<StateMachineTransitionResponse> updateStateMachineTransition(@PathVariable Long id, @Valid @RequestBody UpdateStateMachineTransitionRequest request) {
+        return ResponseEntity.ok(adminService.updateStateMachineTransition(id, request));
     }
 
     @GetMapping("/document-types")

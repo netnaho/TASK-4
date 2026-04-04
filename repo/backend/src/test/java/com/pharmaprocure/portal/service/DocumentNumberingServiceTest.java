@@ -12,6 +12,7 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.dao.DataIntegrityViolationException;
 
 class DocumentNumberingServiceTest {
 
@@ -41,5 +42,20 @@ class DocumentNumberingServiceTest {
 
         DocumentNumberingService service = new DocumentNumberingService(repository, Clock.fixed(Instant.parse("2027-01-01T00:00:00Z"), ZoneOffset.UTC));
         assertEquals("SOP-2027-000001", service.nextNumber("SOP"));
+    }
+
+    @Test
+    void retriesWhenConcurrentInsertCreatesFirstSequenceRow() {
+        DocumentSequenceEntity existing = new DocumentSequenceEntity();
+        existing.setTypeCode("SOP");
+        existing.setSequenceYear(2026);
+        existing.setLastSequenceValue(0);
+
+        when(repository.findByTypeCodeAndSequenceYear("SOP", 2026)).thenReturn(Optional.empty(), Optional.of(existing));
+        when(repository.saveAndFlush(any(DocumentSequenceEntity.class))).thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(repository.save(any(DocumentSequenceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DocumentNumberingService service = new DocumentNumberingService(repository, Clock.fixed(Instant.parse("2026-01-10T00:00:00Z"), ZoneOffset.UTC));
+        assertEquals("SOP-2026-000001", service.nextNumber("SOP"));
     }
 }

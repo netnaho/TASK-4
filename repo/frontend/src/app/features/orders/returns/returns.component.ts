@@ -7,7 +7,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { OrderService } from '../../../core/services/order.service';
-import { OrderDetailModel, OrderSummaryModel } from '../../../core/models/order.models';
+import { ManagedReasonCodeModel, OrderDetailModel, OrderSummaryModel } from '../../../core/models/order.models';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-returns',
@@ -19,8 +20,11 @@ import { OrderDetailModel, OrderSummaryModel } from '../../../core/models/order.
 export class ReturnsComponent implements OnInit {
   orders: OrderSummaryModel[] = [];
   selectedOrder: OrderDetailModel | null = null;
+  returnReasonCodes: ManagedReasonCodeModel[] = [];
+  afterSalesReasonCodes: ManagedReasonCodeModel[] = [];
   readonly form = this.fb.group({
-    reasonCode: ['DAMAGED_GOODS', Validators.required],
+    returnReasonCode: ['', Validators.required],
+    afterSalesReasonCode: ['', Validators.required],
     comments: [''],
     detail: ['Visible carton damage noted on receipt.', Validators.required],
     returnItemId: [null as number | null, Validators.required],
@@ -60,7 +64,7 @@ export class ReturnsComponent implements OnInit {
       return;
     }
     this.orderService.createReturn(this.selectedOrder.id, {
-      reasonCode: this.form.value.reasonCode,
+      reasonCode: this.form.value.returnReasonCode,
       comments: this.form.value.comments,
       items: [{ orderItemId: item.id, quantity }]
     }).subscribe({ next: (order) => this.selectedOrder = order });
@@ -74,12 +78,26 @@ export class ReturnsComponent implements OnInit {
     const item = this.selectedOrder.items.find((candidate) => candidate.id === this.form.value.afterSalesItemId);
     this.orderService.createAfterSalesCase(this.selectedOrder.id, {
       orderItemId: item?.id,
-      reasonCode: this.form.value.reasonCode,
+      reasonCode: this.form.value.afterSalesReasonCode,
       structuredDetail: this.form.value.detail
     }).subscribe({ next: (order) => this.selectedOrder = order });
   }
 
   private refresh(): void {
-    this.orderService.listOrders().subscribe({ next: (page) => (this.orders = page.content.filter((order) => ['PARTIALLY_SHIPPED', 'SHIPPED', 'RECEIVED'].includes(order.status))) });
+    forkJoin({
+      orders: this.orderService.listOrders(),
+      returnReasonCodes: this.orderService.listReasonCodes('RETURN'),
+      afterSalesReasonCodes: this.orderService.listReasonCodes('AFTER_SALES')
+    }).subscribe({
+      next: ({ orders, returnReasonCodes, afterSalesReasonCodes }) => {
+        this.orders = orders.content.filter((order) => ['PARTIALLY_SHIPPED', 'SHIPPED', 'RECEIVED'].includes(order.status));
+        this.returnReasonCodes = returnReasonCodes;
+        this.afterSalesReasonCodes = afterSalesReasonCodes;
+        this.form.patchValue({
+          returnReasonCode: returnReasonCodes[0]?.code ?? '',
+          afterSalesReasonCode: afterSalesReasonCodes[0]?.code ?? ''
+        });
+      }
+    });
   }
 }

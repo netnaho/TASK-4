@@ -25,6 +25,8 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -94,19 +96,21 @@ public class CheckInService {
     @Transactional
     public CheckInDetailResponse create(CreateCheckInRequest request, MultipartFile[] files) {
         UserEntity actor = currentUserService.requireCurrentUser();
+        OffsetDateTime capturedAt = OffsetDateTime.now();
+        OffsetDateTime reportedDeviceTimestamp = request.deviceTimestamp() == null ? capturedAt : request.deviceTimestamp();
         CheckInEntity checkIn = new CheckInEntity();
         checkIn.setOwnerUser(actor);
         checkIn.setCommentText(request.commentText());
-        checkIn.setDeviceTimestamp(request.deviceTimestamp());
-        checkIn.setServerReceivedAt(OffsetDateTime.now());
+        checkIn.setDeviceTimestamp(reportedDeviceTimestamp);
+        checkIn.setServerReceivedAt(capturedAt);
         checkIn.setLatitude(request.latitude());
         checkIn.setLongitude(request.longitude());
         checkIn.setCurrentRevisionNumber(1);
-        checkIn.setCreatedAt(OffsetDateTime.now());
-        checkIn.setUpdatedAt(OffsetDateTime.now());
+        checkIn.setCreatedAt(capturedAt);
+        checkIn.setUpdatedAt(capturedAt);
         checkIn = checkInRepository.save(checkIn);
 
-        CheckInRevisionEntity revision = createRevision(checkIn, actor, request.commentText(), request.deviceTimestamp(), request.latitude(), request.longitude(), List.of("commentText", "deviceTimestamp", "latitude", "longitude"));
+        CheckInRevisionEntity revision = createRevision(checkIn, actor, request.commentText(), reportedDeviceTimestamp, request.latitude(), request.longitude(), initialChangedFields(request, files));
         saveAttachments(checkIn, revision, files);
         checkInAuditService.record(checkIn, revision, actor, CheckInAuditAction.CREATED, "Initial check-in created");
         return get(checkIn.getId());
@@ -116,18 +120,21 @@ public class CheckInService {
     public CheckInDetailResponse update(Long checkInId, UpdateCheckInRequest request, MultipartFile[] files) {
         CheckInEntity checkIn = requireCheckIn(checkInId, Permission.CHECKIN_EDIT);
         UserEntity actor = currentUserService.requireCurrentUser();
-        List<String> changedFields = checkInRevisionDiffService.changedFields(checkIn, request);
+        List<String> changedFields = new java.util.ArrayList<>(checkInRevisionDiffService.changedFields(checkIn, request));
+        if (hasAttachments(files)) {
+            changedFields.add("attachments");
+        }
         if (changedFields.isEmpty() && (files == null || files.length == 0 || Arrays.stream(files).allMatch(MultipartFile::isEmpty))) {
             throw new ApiException(400, "No changes detected", List.of("NO_REVISION_CREATED"));
         }
 
         checkIn.setCommentText(request.commentText());
-        checkIn.setDeviceTimestamp(request.deviceTimestamp());
+        checkIn.setDeviceTimestamp(request.deviceTimestamp() == null ? checkIn.getDeviceTimestamp() : request.deviceTimestamp());
         checkIn.setLatitude(request.latitude());
         checkIn.setLongitude(request.longitude());
         checkIn.setCurrentRevisionNumber(checkIn.getCurrentRevisionNumber() + 1);
         checkIn.setUpdatedAt(OffsetDateTime.now());
-        CheckInRevisionEntity revision = createRevision(checkIn, actor, request.commentText(), request.deviceTimestamp(), request.latitude(), request.longitude(), changedFields);
+        CheckInRevisionEntity revision = createRevision(checkIn, actor, request.commentText(), checkIn.getDeviceTimestamp(), checkIn.getLatitude(), checkIn.getLongitude(), changedFields);
         saveAttachments(checkIn, revision, files);
         checkInAuditService.record(checkIn, revision, actor, CheckInAuditAction.UPDATED, String.join(",", changedFields));
         return get(checkInId);
@@ -139,6 +146,8 @@ public class CheckInService {
         List<CheckInRevisionEntity> revisions = checkInRevisionRepository.findByCheckInIdOrderByRevisionNumberDesc(checkInId);
         List<CheckInAttachmentEntity> attachments = checkInAttachmentRepository.findByCheckInIdOrderByCreatedAtDesc(checkInId);
         List<CheckInAuditEventEntity> auditEvents = checkInAuditEventRepository.findByCheckInIdOrderByCreatedAtDesc(checkInId);
+        Map<Long, List<CheckInAttachmentEntity>> attachmentsByRevisionId = attachments.stream()
+            .collect(Collectors.groupingBy(attachment -> attachment.getRevision().getId()));
         return new CheckInDetailResponse(
             checkIn.getId(),
             checkIn.getOwnerUser().getDisplayName(),
@@ -148,7 +157,7 @@ public class CheckInService {
             checkIn.getLatitude(),
             checkIn.getLongitude(),
             attachments.stream().map(this::toAttachment).toList(),
-            revisions.stream().map(this::toRevision).toList(),
+            revisions.stream().map(revision -> toRevision(revision, attachmentsByRevisionId.getOrDefault(revision.getId(), List.of()))).toList(),
             auditEvents.stream().map(event -> new CheckInAuditResponse(event.getAction().name(), event.getActorUser().getDisplayName(), event.getDetail(), event.getCreatedAt())).toList(),
             checkIn.getCreatedAt(),
             checkIn.getUpdatedAt()
@@ -202,6 +211,26 @@ public class CheckInService {
         return checkInRevisionRepository.save(revision);
     }
 
+    private List<String> initialChangedFields(CreateCheckInRequest request, MultipartFile[] files) {
+        List<String> changedFields = new java.util.ArrayList<>();
+        changedFields.add("commentText");
+        changedFields.add("deviceTimestamp");
+        if (request.latitude() != null) {
+            changedFields.add("latitude");
+        }
+        if (request.longitude() != null) {
+            changedFields.add("longitude");
+        }
+        if (hasAttachments(files)) {
+            changedFields.add("attachments");
+        }
+        return changedFields;
+    }
+
+    private boolean hasAttachments(MultipartFile[] files) {
+        return files != null && Arrays.stream(files).anyMatch(file -> file != null && !file.isEmpty());
+    }
+
     private void saveAttachments(CheckInEntity checkIn, CheckInRevisionEntity revision, MultipartFile[] files) {
         if (files == null) {
             return;
@@ -238,6 +267,7 @@ public class CheckInService {
     private CheckInAttachmentResponse toAttachment(CheckInAttachmentEntity attachment) {
         return new CheckInAttachmentResponse(
             attachment.getId(),
+            attachment.getRevision().getId(),
             attachment.getOriginalFileName(),
             attachment.getMimeType(),
             attachment.getFileSizeBytes(),
@@ -249,10 +279,10 @@ public class CheckInService {
         );
     }
 
-    private CheckInRevisionResponse toRevision(CheckInRevisionEntity revision) {
+    private CheckInRevisionResponse toRevision(CheckInRevisionEntity revision, List<CheckInAttachmentEntity> attachments) {
         List<String> fields = revision.getChangedFields() == null || revision.getChangedFields().isBlank()
             ? List.of()
             : Arrays.stream(revision.getChangedFields().split(",")).filter(item -> !item.isBlank()).toList();
-        return new CheckInRevisionResponse(revision.getId(), revision.getRevisionNumber(), revision.getCommentText(), revision.getDeviceTimestamp(), revision.getLatitude(), revision.getLongitude(), fields, revision.getEditedBy().getDisplayName(), revision.getCreatedAt());
+        return new CheckInRevisionResponse(revision.getId(), revision.getRevisionNumber(), revision.getCommentText(), revision.getDeviceTimestamp(), revision.getLatitude(), revision.getLongitude(), fields, attachments.stream().map(this::toAttachment).toList(), revision.getEditedBy().getDisplayName(), revision.getCreatedAt());
     }
 }

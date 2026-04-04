@@ -45,7 +45,9 @@ export class ReceiptsComponent implements OnInit {
       .map((group) => ({
         orderItemId: group.controls['orderItemId'].value,
         quantity: Number(group.controls['quantity'].value),
-        discrepancyReason: group.controls['discrepancyReason'].value
+        discrepancyReason: group.controls['discrepancyReason'].value,
+        remainingToReceive: Number(group.controls['remainingToReceive'].value),
+        remainingOrdered: Number(group.controls['remainingOrdered'].value)
       }))
       .filter((item) => item.quantity > 0)
       .map((item) => ({ ...item, discrepancyReason: item.discrepancyReason || undefined }));
@@ -54,10 +56,12 @@ export class ReceiptsComponent implements OnInit {
       return;
     }
 
+    const requiresConfirmation = discrepancy || items.some((item) => item.quantity !== item.remainingToReceive || item.remainingToReceive !== item.remainingOrdered || !!item.discrepancyReason);
+
     const submit = () => this.orderService.createReceipt(this.selectedOrder!.id, {
-      items,
+      items: items.map(({ orderItemId, quantity, discrepancyReason }) => ({ orderItemId, quantity, discrepancyReason })),
       notes: this.receiptForm.value.notes,
-      discrepancyConfirmed: discrepancy
+      discrepancyConfirmed: requiresConfirmation
     }).subscribe({
       next: (order) => {
         this.selectedOrder = order;
@@ -65,7 +69,7 @@ export class ReceiptsComponent implements OnInit {
       }
     });
 
-    if (discrepancy) {
+    if (requiresConfirmation) {
       this.dialog.open(DiscrepancyDialogComponent).afterClosed().subscribe((confirmed) => confirmed && submit());
       return;
     }
@@ -88,6 +92,7 @@ export class ReceiptsComponent implements OnInit {
           orderItemId: this.fb.nonNullable.control(item.id),
           sku: this.fb.nonNullable.control(item.sku),
           remainingToReceive: this.fb.nonNullable.control(item.remainingToReceive),
+          remainingOrdered: this.fb.nonNullable.control(item.orderedQuantity - item.receivedQuantity),
           quantity: this.fb.nonNullable.control(0, [Validators.required, Validators.min(0), Validators.max(item.remainingToReceive)]),
           discrepancyReason: this.fb.nonNullable.control('')
         })

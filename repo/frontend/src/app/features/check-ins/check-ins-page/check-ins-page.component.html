@@ -3,7 +3,7 @@
     <div>
       <div class="eyebrow">Field check-ins</div>
       <h1>Capture evidence quickly, preserve revisions, and keep compliant field records without map views.</h1>
-      <p>Check-ins store local device time, optional geolocation, signed attachments, and a visible revision trail that highlights edits.</p>
+      <p>Check-ins store reported local device time, optional geolocation, server receipt time, signed attachments, and a visible revision trail that highlights edits.</p>
     </div>
   </div>
 
@@ -16,7 +16,7 @@
       <div class="section-title">
         <div>
           <h2>Quick create</h2>
-          <p>One-tap check-in creation with optional coordinates and compliant evidence attachments.</p>
+          <p>Capture local device context with optional coordinates while preserving server receipt time and evidence attachments.</p>
         </div>
         <span class="action-chip">No maps shown</span>
       </div>
@@ -29,7 +29,7 @@
 
         <div class="meta-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Device timestamp</mat-label>
+            <mat-label>Local device time</mat-label>
             <input matInput formControlName="deviceTimestamp" />
           </mat-form-field>
           <button mat-stroked-button color="primary" type="button" (click)="captureGeolocation()" [disabled]="isLocating">
@@ -93,14 +93,18 @@
     @if (!selectedCheckIn) {
       <div class="empty-state">Select a check-in to inspect its revision trail and evidence.</div>
     } @else {
-      <div class="summary-row">
-        <div class="premium-card info-card">
-          <strong>Owner</strong>
-          <p>{{ selectedCheckIn.owner }}</p>
-        </div>
-        <div class="premium-card info-card">
-          <strong>Coordinates</strong>
-          <p>{{ selectedCheckIn.latitude ?? 'Not captured' }}, {{ selectedCheckIn.longitude ?? 'Not captured' }}</p>
+        <div class="summary-row">
+          <div class="premium-card info-card">
+            <strong>Owner</strong>
+            <p>{{ selectedCheckIn.owner }}</p>
+          </div>
+          <div class="premium-card info-card">
+            <strong>Local device time</strong>
+            <p>{{ selectedCheckIn.deviceTimestamp | date:'medium' }}</p>
+          </div>
+          <div class="premium-card info-card">
+            <strong>Coordinates</strong>
+            <p>{{ selectedCheckIn.latitude ?? 'Not captured' }}, {{ selectedCheckIn.longitude ?? 'Not captured' }}</p>
         </div>
         <div class="premium-card info-card">
           <strong>Server received</strong>
@@ -125,9 +129,23 @@
                 </div>
                 <div class="revision-preview">
                   <p [class.changed]="highlightClass(revision, 'commentText')">{{ revision.commentText || 'No comment' }}</p>
+                  <p [class.changed]="highlightClass(revision, 'deviceTimestamp')">{{ revision.deviceTimestamp | date:'medium' }}</p>
                   <p [class.changed]="highlightClass(revision, 'latitude') || highlightClass(revision, 'longitude')">
                     {{ revision.latitude ?? 'no lat' }}, {{ revision.longitude ?? 'no lng' }}
                   </p>
+                  @if (revision.attachments.length > 0) {
+                    <div class="stack-list small">
+                      @for (attachment of revision.attachments; track attachment.id) {
+                        <div class="stack-item premium-card small-item attachment-item">
+                          <div>
+                            <strong>{{ attachment.originalFileName }}</strong>
+                            <p>{{ attachment.mimeType }} • {{ attachment.createdAt | date:'short' }}</p>
+                          </div>
+                          <a mat-button color="primary" [href]="attachmentUrl(attachment.id)" target="_blank" rel="noopener">Open</a>
+                        </div>
+                      }
+                    </div>
+                  }
                 </div>
               </div>
             }

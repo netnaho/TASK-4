@@ -26,11 +26,12 @@
       <div class="empty-state">Select an order to create a return or after-sales case.</div>
     } @else {
       <form [formGroup]="form" class="form-grid">
-        <mat-form-field appearance="outline"><mat-label>Reason code</mat-label><mat-select formControlName="reasonCode"><mat-option value="DAMAGED_GOODS">Damaged goods</mat-option><mat-option value="TEMPERATURE_EXCURSION">Temperature excursion</mat-option><mat-option value="OTHER">Other</mat-option></mat-select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Return reason code</mat-label><mat-select formControlName="returnReasonCode">@for (reason of returnReasonCodes; track reason.code) {<mat-option [value]="reason.code">{{ reason.label }}</mat-option>}</mat-select></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Comments</mat-label><input matInput formControlName="comments" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Return line item</mat-label><mat-select formControlName="returnItemId">@for (item of selectedOrder.items; track item.id) {<mat-option [value]="item.id">{{ item.sku }} (max {{ item.receivedQuantity - item.returnedQuantity }})</mat-option>}</mat-select></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Return quantity</mat-label><input matInput type="number" min="1" formControlName="returnQuantity" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>After-sales line item</mat-label><mat-select formControlName="afterSalesItemId">@for (item of selectedOrder.items; track item.id) {<mat-option [value]="item.id">{{ item.sku }}</mat-option>}</mat-select></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>After-sales reason code</mat-label><mat-select formControlName="afterSalesReasonCode">@for (reason of afterSalesReasonCodes; track reason.code) {<mat-option [value]="reason.code">{{ reason.label }}</mat-option>}</mat-select></mat-form-field>
         <mat-form-field appearance="outline" class="full-width"><mat-label>Structured detail</mat-label><textarea matInput rows="3" formControlName="detail"></textarea></mat-form-field>
       </form>
       <div class="action-row">

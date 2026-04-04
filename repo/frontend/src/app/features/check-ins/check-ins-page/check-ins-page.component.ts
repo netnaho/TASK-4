@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { finalize, forkJoin, of } from 'rxjs';
+import { finalize, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CheckInDetailModel, CheckInRevisionModel, CheckInSummaryModel } from '../../../core/models/check-in.models';
 import { CheckInService } from '../../../core/services/check-in.service';
@@ -48,9 +48,8 @@ export class CheckInsPageComponent implements OnInit {
     if (this.isCreating) {
       return;
     }
-    this.form.patchValue({ deviceTimestamp: new Date().toISOString() });
     this.isCreating = true;
-    this.checkInService.create(JSON.stringify(this.form.getRawValue()), this.selectedFiles).pipe(
+    this.checkInService.create(this.buildPayload(), this.selectedFiles).pipe(
       finalize(() => (this.isCreating = false))
     ).subscribe({
       next: (checkIn) => {
@@ -66,9 +65,8 @@ export class CheckInsPageComponent implements OnInit {
     if (!this.selectedCheckIn || this.isUpdating) {
       return;
     }
-    this.form.patchValue({ deviceTimestamp: new Date().toISOString() });
     this.isUpdating = true;
-    this.checkInService.update(this.selectedCheckIn.id, JSON.stringify(this.form.getRawValue()), this.selectedFiles).pipe(
+    this.checkInService.update(this.selectedCheckIn.id, this.buildPayload(), this.selectedFiles).pipe(
       finalize(() => (this.isUpdating = false))
     ).subscribe({
       next: (checkIn) => {
@@ -104,7 +102,7 @@ export class CheckInsPageComponent implements OnInit {
         this.selectedCheckIn = checkIn;
         this.form.patchValue({
           commentText: checkIn.commentText ?? '',
-          deviceTimestamp: new Date().toISOString(),
+          deviceTimestamp: checkIn.deviceTimestamp,
           latitude: checkIn.latitude ?? null,
           longitude: checkIn.longitude ?? null
         });
@@ -126,6 +124,15 @@ export class CheckInsPageComponent implements OnInit {
       return '';
     }
     return this.checkInService.attachmentUrl(this.selectedCheckIn.id, attachmentId);
+  }
+
+  private buildPayload(): string {
+    return JSON.stringify({
+      commentText: this.form.controls.commentText.value,
+      deviceTimestamp: this.form.controls.deviceTimestamp.value,
+      latitude: this.form.controls.latitude.value,
+      longitude: this.form.controls.longitude.value
+    });
   }
 
   private reload(): void {

@@ -6,6 +6,12 @@ export interface ProductCatalogModel {
   unit: string;
 }
 
+export interface ManagedReasonCodeModel {
+  codeType: string;
+  code: string;
+  label: string;
+}
+
 export interface OrderSummaryModel {
   id: number;
   orderNumber: string;

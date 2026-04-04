@@ -12,10 +12,16 @@ public final class AdminDtos {
     public record UserVisibilityResponse(Long id, String username, String displayName, String role, boolean active) {
     }
 
+    public record UpdateUserAccessRequest(@NotNull Boolean active) {
+    }
+
     public record PermissionOverviewResponse(String role, List<String> permissions) {
     }
 
-    public record StateMachineTransitionResponse(String fromStatus, String toStatus, boolean active) {
+    public record StateMachineTransitionResponse(Long id, String fromStatus, String toStatus, boolean active) {
+    }
+
+    public record UpdateStateMachineTransitionRequest(@NotNull Boolean active) {
     }
 
     public record ReasonCodeResponse(Long id, String codeType, String code, String label, boolean active) {

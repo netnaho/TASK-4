@@ -9,7 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, forkJoin, of } from 'rxjs';
 import { AdminService } from '../../../core/services/admin.service';
-import { AdminUserModel, PermissionOverviewModel, ReasonCodeModel, StateMachineConfigModel } from '../../../core/models/admin.models';
+import { AdminUserModel, PermissionOverviewModel, ReasonCodeModel, StateMachineConfigModel, StateMachineTransitionModel } from '../../../core/models/admin.models';
 import { DocumentTypeModel } from '../../../core/models/document.models';
 
 @Component({
@@ -21,8 +21,10 @@ import { DocumentTypeModel } from '../../../core/models/document.models';
 })
 export class AdminPageComponent implements OnInit {
   users: AdminUserModel[] = [];
+  selectedUser: AdminUserModel | null = null;
   permissions: PermissionOverviewModel[] = [];
   stateMachine: StateMachineConfigModel | null = null;
+  selectedTransition: StateMachineTransitionModel | null = null;
   documentTypes: DocumentTypeModel[] = [];
   reasonCodes: ReasonCodeModel[] = [];
   selectedDocumentType: DocumentTypeModel | null = null;
@@ -30,6 +32,10 @@ export class AdminPageComponent implements OnInit {
   loadError = '';
 
   readonly documentTypeForm = this.fb.group({ description: ['', Validators.required], evidenceAllowed: [false], active: [true] });
+
+  readonly userAccessForm = this.fb.group({ active: [true, Validators.required] });
+
+  readonly transitionForm = this.fb.group({ active: [true, Validators.required] });
 
   readonly reasonCodeForm = this.fb.group({ codeType: ['RETURN', Validators.required], code: ['', Validators.required], label: ['', Validators.required], active: [true] });
 
@@ -42,9 +48,43 @@ export class AdminPageComponent implements OnInit {
     this.adminService.createReasonCode(this.reasonCodeForm.getRawValue()).subscribe({ next: () => { this.snackBar.open('Reason code created', 'Dismiss', { duration: 2200 }); this.reload(); } });
   }
 
+  selectUser(user: AdminUserModel): void {
+    this.selectedUser = user;
+    this.userAccessForm.patchValue({ active: user.active });
+  }
+
+  saveUserAccess(): void {
+    if (!this.selectedUser) {
+      return;
+    }
+    this.adminService.updateUserAccess(this.selectedUser.id, { active: this.userAccessForm.value.active }).subscribe({
+      next: () => {
+        this.snackBar.open('User access updated', 'Dismiss', { duration: 2200 });
+        this.reload();
+      }
+    });
+  }
+
   selectDocumentType(type: DocumentTypeModel): void {
     this.selectedDocumentType = type;
     this.documentTypeForm.patchValue({ description: type.description ?? '', evidenceAllowed: type.evidenceAllowed, active: type.active });
+  }
+
+  selectTransition(transition: StateMachineTransitionModel): void {
+    this.selectedTransition = transition;
+    this.transitionForm.patchValue({ active: transition.active });
+  }
+
+  saveTransition(): void {
+    if (!this.selectedTransition) {
+      return;
+    }
+    this.adminService.updateStateMachineTransition(this.selectedTransition.id, { active: this.transitionForm.value.active }).subscribe({
+      next: () => {
+        this.snackBar.open('State transition updated', 'Dismiss', { duration: 2200 });
+        this.reload();
+      }
+    });
   }
 
   saveDocumentType(): void {
@@ -82,8 +122,10 @@ export class AdminPageComponent implements OnInit {
       .subscribe({
         next: (data) => {
           this.users = data.users;
+          this.selectedUser = null;
           this.permissions = data.permissions;
           this.stateMachine = data.stateMachine;
+          this.selectedTransition = null;
           this.documentTypes = data.documentTypes;
           this.reasonCodes = data.reasonCodes;
         }

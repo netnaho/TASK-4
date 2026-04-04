@@ -37,7 +37,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     public RateLimitFilter(
             ObjectMapper objectMapper,
             @org.springframework.beans.factory.annotation.Value("${rate.limit.max-per-minute:60}") int maxRequestsPerMinute,
-            @org.springframework.beans.factory.annotation.Value("${rate.limit.login.max-per-minute:100}") int maxLoginRequestsPerMinute) {
+            @org.springframework.beans.factory.annotation.Value("${rate.limit.login.max-per-minute:20}") int maxLoginRequestsPerMinute) {
         this(objectMapper, Clock.systemUTC(), maxRequestsPerMinute, maxLoginRequestsPerMinute);
     }
 

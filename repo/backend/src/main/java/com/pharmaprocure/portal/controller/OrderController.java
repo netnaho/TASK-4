@@ -2,6 +2,7 @@ package com.pharmaprocure.portal.controller;
 
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.AfterSalesCaseCreateRequest;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.CreateOrderRequest;
+import com.pharmaprocure.portal.dto.OrderLifecycleDtos.ManagedReasonCodeResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.OrderDetailResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.OrderSummaryResponse;
 import com.pharmaprocure.portal.dto.OrderLifecycleDtos.ReceiptCreateRequest;
@@ -48,6 +49,12 @@ public class OrderController {
     @PreAuthorize("@permissionAuth.hasPermission(authentication, 'ORDER_VIEW')")
     public ResponseEntity<OrderDetailResponse> getOrder(@PathVariable Long orderId) {
         return ResponseEntity.ok(orderService.getOrder(orderId));
+    }
+
+    @GetMapping("/reason-codes")
+    @PreAuthorize("@permissionAuth.hasPermission(authentication, 'ORDER_VIEW')")
+    public ResponseEntity<List<ManagedReasonCodeResponse>> reasonCodes(@RequestParam String codeType) {
+        return ResponseEntity.ok(orderService.listActiveReasonCodes(codeType));
     }
 
     @PostMapping

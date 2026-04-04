@@ -82,6 +82,9 @@ public final class OrderLifecycleDtos {
     ) {
     }
 
+    public record ManagedReasonCodeResponse(String codeType, String code, String label) {
+    }
+
     public record OrderSummaryResponse(
         Long id,
         String orderNumber,
