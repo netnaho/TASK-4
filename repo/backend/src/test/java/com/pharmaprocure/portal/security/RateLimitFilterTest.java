@@ -89,19 +89,17 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void authCsrfEndpointUses60PerMinuteLimit() throws Exception {
-        for (int i = 0; i < 60; i++) {
+    void csrfEndpointIsExcludedFromRateLimiting() throws Exception {
+        for (int i = 0; i < 100; i++) {
             assertEquals(200, doFilterWithIp("/api/auth/csrf", "10.0.0.1").getStatus());
         }
-        assertEquals(429, doFilterWithIp("/api/auth/csrf", "10.0.0.1").getStatus());
     }
 
     @Test
-    void authCaptchaEndpointUses60PerMinuteLimit() throws Exception {
-        for (int i = 0; i < 60; i++) {
+    void captchaEndpointIsExcludedFromRateLimiting() throws Exception {
+        for (int i = 0; i < 100; i++) {
             assertEquals(200, doFilterWithIp("/api/auth/captcha", "10.0.0.1").getStatus());
         }
-        assertEquals(429, doFilterWithIp("/api/auth/captcha", "10.0.0.1").getStatus());
     }
 
     @Test
@@ -144,26 +142,17 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void loginAndCsrfUseIndependentWindows() throws Exception {
-        // Login uses a separate window from other /api/auth/* endpoints.
-        // Exhausting the login limit does not affect the csrf limit and vice versa.
+    void logoutUsesPerUserRateLimiting() throws Exception {
+        // Exhaust the login IP budget
         for (int i = 0; i < 20; i++) {
             assertEquals(200, doFilterWithIp("/api/auth/login", "10.0.0.5").getStatus());
         }
-        // Login window is exhausted
         assertEquals(429, doFilterWithIp("/api/auth/login", "10.0.0.5").getStatus());
 
-        // CSRF uses its own independent window — still passes
-        assertEquals(200, doFilterWithIp("/api/auth/csrf", "10.0.0.5").getStatus());
-
-        // Exhaust csrf window independently (60 calls already made: 1 above + 59 more)
-        for (int i = 0; i < 59; i++) {
-            doFilterWithIp("/api/auth/csrf", "10.0.0.5");
-        }
-        assertEquals(429, doFilterWithIp("/api/auth/csrf", "10.0.0.5").getStatus());
-
-        // Login window remains independent — still blocked at its own limit
-        assertEquals(429, doFilterWithIp("/api/auth/login", "10.0.0.5").getStatus());
+        // Authenticated logout goes through per-user tracking, not login IP tracking — still passes
+        setAuthenticated("user1");
+        MockHttpServletResponse logoutResponse = doFilter("/api/auth/logout");
+        assertEquals(200, logoutResponse.getStatus());
     }
 
     private void setAuthenticated(String username) {

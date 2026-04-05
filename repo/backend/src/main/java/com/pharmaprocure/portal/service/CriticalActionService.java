@@ -284,6 +284,10 @@ public class CriticalActionService {
     }
 
     private boolean canAccessTarget(UserEntity actor, CriticalActionRequestEntity request, Permission permission) {
+        UserEntity requester = request.getRequestedBy();
+        if (!permissionAuthorizationService.canAccessResource(actor, permission, requester.getId(), requester.getRole().getName(), requester.getOrganizationCode())) {
+            return false;
+        }
         return switch (request.getTargetType()) {
             case ORDER -> orderRepository.findWithItemsById(request.getTargetId())
                 .map(order -> permissionAuthorizationService.canAccessResource(actor, permission, order.getBuyer().getId(), order.getBuyer().getRole().getName(), order.getBuyer().getOrganizationCode()))

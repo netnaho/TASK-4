@@ -327,10 +327,7 @@ public class OrderService {
             if (quantityRequest.quantity() > maxReceivable) {
                 throw new ApiException(400, "Cannot receive more than ordered quantity", List.of("orderItemId=" + item.getId()));
             }
-            boolean shipmentOrderMismatch = remainingShipped != maxReceivable;
-            boolean lineHasDiscrepancy = quantityRequest.quantity() != remainingShipped
-                || shipmentOrderMismatch
-                || (quantityRequest.discrepancyReason() != null && !quantityRequest.discrepancyReason().isBlank());
+            boolean lineHasDiscrepancy = quantityRequest.discrepancyReason() != null && !quantityRequest.discrepancyReason().isBlank();
             if (lineHasDiscrepancy && !request.discrepancyConfirmed()) {
                 throw new ApiException(400, "Receipt discrepancy confirmation required", List.of("orderItemId=" + item.getId()));
             }

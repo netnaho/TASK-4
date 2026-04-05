@@ -80,11 +80,12 @@ class OrderControllerIntegrationTest extends AbstractMockMvcIntegrationTest {
     }
 
     @Test
-    void shipmentOrderMismatchRequiresDiscrepancyConfirmation() throws Exception {
-        var buyer = createUser(RoleName.BUYER, "buyer-shipment-order-mismatch", "ORG-ALPHA", "Password!23");
+    void partialShipmentReceiptDoesNotRequireDiscrepancyConfirmation() throws Exception {
+        var buyer = createUser(RoleName.BUYER, "buyer-partial-shipment-receipt", "ORG-ALPHA", "Password!23");
         var order = createOrder(buyer, OrderStatus.PARTIALLY_SHIPPED, 10, 4, 0);
         Long orderItemId = order.getItems().get(0).getId();
 
+        // Receiving exactly what was shipped (even though shipped < ordered) is not a discrepancy
         mockMvc.perform(post("/api/orders/{orderId}/receipts", order.getId())
                 .with(authenticated(buyer))
                 .with(csrf())
@@ -94,16 +95,16 @@ class OrderControllerIntegrationTest extends AbstractMockMvcIntegrationTest {
                     "discrepancyConfirmed", false,
                     "items", List.of(Map.of("orderItemId", orderItemId, "quantity", 4))
                 ))))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Receipt discrepancy confirmation required"));
+            .andExpect(status().isOk());
     }
 
     @Test
-    void shortReceiptRequiresDiscrepancyConfirmation() throws Exception {
-        var buyer = createUser(RoleName.BUYER, "buyer-short-receipt", "ORG-ALPHA", "Password!23");
+    void discrepancyReasonRequiresExplicitConfirmation() throws Exception {
+        var buyer = createUser(RoleName.BUYER, "buyer-discrepancy-confirm", "ORG-ALPHA", "Password!23");
         var order = createOrder(buyer, OrderStatus.SHIPPED, 10, 10, 0);
         Long orderItemId = order.getItems().get(0).getId();
 
+        // Partial receipt without discrepancy reason — no confirmation needed
         mockMvc.perform(post("/api/orders/{orderId}/receipts", order.getId())
                 .with(authenticated(buyer))
                 .with(csrf())
@@ -113,20 +114,32 @@ class OrderControllerIntegrationTest extends AbstractMockMvcIntegrationTest {
                     "discrepancyConfirmed", false,
                     "items", List.of(Map.of("orderItemId", orderItemId, "quantity", 6))
                 ))))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Receipt discrepancy confirmation required"));
+            .andExpect(status().isOk());
 
+        // Providing discrepancyReason without discrepancyConfirmed=true is rejected
         mockMvc.perform(post("/api/orders/{orderId}/receipts", order.getId())
                 .with(authenticated(buyer))
                 .with(csrf())
                 .contentType(APPLICATION_JSON)
                 .content(json(Map.of(
-                    "notes", "Only part of the shipment arrived",
+                    "notes", "Short delivery noticed",
+                    "discrepancyConfirmed", false,
+                    "items", List.of(Map.of("orderItemId", orderItemId, "quantity", 4, "discrepancyReason", "units missing"))
+                ))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Receipt discrepancy confirmation required"));
+
+        // Providing discrepancyReason with discrepancyConfirmed=true succeeds
+        mockMvc.perform(post("/api/orders/{orderId}/receipts", order.getId())
+                .with(authenticated(buyer))
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content(json(Map.of(
+                    "notes", "Short delivery with confirmation",
                     "discrepancyConfirmed", true,
-                    "items", List.of(Map.of("orderItemId", orderItemId, "quantity", 6, "discrepancyReason", "4 units missing"))
+                    "items", List.of(Map.of("orderItemId", orderItemId, "quantity", 4, "discrepancyReason", "units missing"))
                 ))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.receipts[0].hasDiscrepancy").value(true))
             .andExpect(jsonPath("$.items[0].discrepancyFlag").value(true));
     }
 

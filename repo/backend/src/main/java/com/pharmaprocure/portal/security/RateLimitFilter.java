@@ -29,7 +29,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final int maxLoginRequestsPerMinute;
     private final Map<String, Deque<Instant>> requestWindows = new ConcurrentHashMap<>();
     private final Map<String, Deque<Instant>> loginIpWindows = new ConcurrentHashMap<>();
-    private final Map<String, Deque<Instant>> authIpWindows = new ConcurrentHashMap<>();
     private final Clock clock;
     private final ObjectMapper objectMapper;
 
@@ -51,7 +50,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/api/health") || path.startsWith("/api/meta") || path.startsWith("/actuator");
+        return path.startsWith("/api/health") || path.startsWith("/api/meta") || path.startsWith("/actuator")
+            || path.startsWith("/api/auth/csrf") || path.startsWith("/api/auth/captcha");
     }
 
     @Override
@@ -62,16 +62,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
             String clientIp = resolveClientIp(request);
             if (isRateLimited(loginIpWindows, clientIp, maxLoginRequestsPerMinute)) {
                 writeRateLimitResponse(response, "MAX_" + maxLoginRequestsPerMinute + "_LOGIN_REQUESTS_PER_MINUTE");
-                return;
-            }
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        if (path.startsWith("/api/auth/")) {
-            String clientIp = resolveClientIp(request);
-            if (isRateLimited(authIpWindows, clientIp, maxRequestsPerMinute)) {
-                writeRateLimitResponse(response, "MAX_" + maxRequestsPerMinute + "_REQUESTS_PER_MINUTE");
                 return;
             }
             filterChain.doFilter(request, response);
@@ -125,6 +115,5 @@ public class RateLimitFilter extends OncePerRequestFilter {
     public void clearWindows() {
         requestWindows.clear();
         loginIpWindows.clear();
-        authIpWindows.clear();
     }
 }
