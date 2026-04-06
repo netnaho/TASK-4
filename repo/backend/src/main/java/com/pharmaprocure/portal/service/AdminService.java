@@ -23,6 +23,7 @@ import com.pharmaprocure.portal.repository.UserRepository;
 import com.pharmaprocure.portal.security.RolePermissionMatrix;
 import java.util.Arrays;
 import java.util.List;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,19 +35,25 @@ public class AdminService {
     private final OrderStateMachineDefinitionRepository stateMachineDefinitionRepository;
     private final DocumentTypeRepository documentTypeRepository;
     private final ReasonCodeRepository reasonCodeRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicyService passwordPolicyService;
 
     public AdminService(
         UserRepository userRepository,
         RolePermissionMatrix rolePermissionMatrix,
         OrderStateMachineDefinitionRepository stateMachineDefinitionRepository,
         DocumentTypeRepository documentTypeRepository,
-        ReasonCodeRepository reasonCodeRepository
+        ReasonCodeRepository reasonCodeRepository,
+        PasswordEncoder passwordEncoder,
+        PasswordPolicyService passwordPolicyService
     ) {
         this.userRepository = userRepository;
         this.rolePermissionMatrix = rolePermissionMatrix;
         this.stateMachineDefinitionRepository = stateMachineDefinitionRepository;
         this.documentTypeRepository = documentTypeRepository;
         this.reasonCodeRepository = reasonCodeRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordPolicyService = passwordPolicyService;
     }
 
     @Transactional(readOnly = true)
@@ -61,6 +68,16 @@ public class AdminService {
         UserEntity user = userRepository.findById(id)
             .orElseThrow(() -> new ApiException(404, "User not found", List.of("userId=" + id)));
         user.setActive(request.active());
+        UserEntity saved = userRepository.save(user);
+        return new UserVisibilityResponse(saved.getId(), saved.getUsername(), saved.getDisplayName(), saved.getRole().getName().name(), saved.isActive());
+    }
+
+    @Transactional
+    public UserVisibilityResponse resetUserPassword(Long id, String newPassword) {
+        passwordPolicyService.validateOrThrow(newPassword);
+        UserEntity user = userRepository.findById(id)
+            .orElseThrow(() -> new ApiException(404, "User not found", List.of("userId=" + id)));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         UserEntity saved = userRepository.save(user);
         return new UserVisibilityResponse(saved.getId(), saved.getUsername(), saved.getDisplayName(), saved.getRole().getName().name(), saved.isActive());
     }

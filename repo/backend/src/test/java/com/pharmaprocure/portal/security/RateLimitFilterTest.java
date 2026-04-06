@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -22,7 +23,7 @@ class RateLimitFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new RateLimitFilter(objectMapper, Clock.fixed(now, ZoneId.of("UTC")), 60, 20);
+        filter = new RateLimitFilter(objectMapper, Clock.fixed(now, ZoneId.of("UTC")), 60, 20, 120, List.of());
         SecurityContextHolder.clearContext();
     }
 
@@ -58,7 +59,7 @@ class RateLimitFilterTest {
         assertEquals(429, blocked.getStatus());
 
         // Advance clock past the 60-second window
-        filter = new RateLimitFilter(objectMapper, Clock.fixed(now.plusSeconds(61), ZoneId.of("UTC")), 60, 20);
+        filter = new RateLimitFilter(objectMapper, Clock.fixed(now.plusSeconds(61), ZoneId.of("UTC")), 60, 20, 120, List.of());
         setAuthenticated("user1");
         // The new filter instance has empty windows, simulating expiry
         MockHttpServletResponse response = doFilter("/api/orders");
@@ -89,17 +90,40 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void csrfEndpointIsExcludedFromRateLimiting() throws Exception {
+    void csrfEndpointAllowsHighThroughputUpToInfraLimit() throws Exception {
+        // 100 requests well under the 120/min infra limit — all should pass
         for (int i = 0; i < 100; i++) {
-            assertEquals(200, doFilterWithIp("/api/auth/csrf", "10.0.0.1").getStatus());
+            assertEquals(200, doFilterWithIp("/api/auth/csrf", "10.0.0.1").getStatus(),
+                "CSRF request " + (i + 1) + " should not be rate-limited under infra limit");
         }
     }
 
     @Test
-    void captchaEndpointIsExcludedFromRateLimiting() throws Exception {
+    void captchaEndpointAllowsHighThroughputUpToInfraLimit() throws Exception {
+        // 100 requests well under the 120/min infra limit — all should pass
         for (int i = 0; i < 100; i++) {
-            assertEquals(200, doFilterWithIp("/api/auth/captcha", "10.0.0.1").getStatus());
+            assertEquals(200, doFilterWithIp("/api/auth/captcha", "10.0.0.1").getStatus(),
+                "Captcha request " + (i + 1) + " should not be rate-limited under infra limit");
         }
+    }
+
+    @Test
+    void infraEndpointBlockedAfterExceedingLimit() throws Exception {
+        // Use a low infra limit to make the test fast
+        RateLimitFilter lowLimitFilter = new RateLimitFilter(objectMapper, Clock.fixed(now, ZoneId.of("UTC")), 60, 20, 5, List.of());
+        for (int i = 0; i < 5; i++) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/auth/csrf");
+            request.setRemoteAddr("10.0.0.1");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            lowLimitFilter.doFilter(request, response, new MockFilterChain());
+            assertEquals(200, response.getStatus(), "Request " + (i + 1) + " should pass");
+        }
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/auth/csrf");
+        request.setRemoteAddr("10.0.0.1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        lowLimitFilter.doFilter(request, response, new MockFilterChain());
+        assertEquals(429, response.getStatus());
+        assert response.getContentAsString().contains("INFRA_REQUESTS_PER_MINUTE");
     }
 
     @Test
@@ -123,21 +147,47 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void xForwardedForHeaderUsedForIpResolution() throws Exception {
+    void xForwardedForIgnoredWithoutTrustedProxyConfig() throws Exception {
+        // Without trusted proxies configured, X-Forwarded-For is ignored.
+        // Requests from remoteAddr "10.0.0.1" are rate-limited by that address,
+        // regardless of what X-Forwarded-For claims.
         for (int i = 0; i < 20; i++) {
             MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
-            request.addHeader("X-Forwarded-For", "192.168.1.100, 10.0.0.1");
-            request.setRemoteAddr("127.0.0.1");
+            request.setRemoteAddr("10.0.0.1");
+            request.addHeader("X-Forwarded-For", "1.2.3.4");  // attacker-controlled header
             MockHttpServletResponse response = new MockHttpServletResponse();
             filter.doFilter(request, response, new MockFilterChain());
             assertEquals(200, response.getStatus());
         }
-        // 21st from same forwarded IP should be blocked
+        // 21st from same remoteAddr should be blocked — the forged header did not help
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
-        request.addHeader("X-Forwarded-For", "192.168.1.100, 10.0.0.1");
-        request.setRemoteAddr("127.0.0.1");
+        request.setRemoteAddr("10.0.0.1");
+        request.addHeader("X-Forwarded-For", "1.2.3.4");
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void xForwardedForHonoredWhenRemoteAddrIsTrustedProxy() throws Exception {
+        // When the direct TCP peer is a configured trusted proxy, X-Forwarded-For is used.
+        RateLimitFilter trustedFilter = new RateLimitFilter(
+            objectMapper, Clock.fixed(now, ZoneId.of("UTC")), 60, 20, 120, List.of("127.0.0.1/32"));
+
+        for (int i = 0; i < 20; i++) {
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
+            request.setRemoteAddr("127.0.0.1");  // trusted proxy
+            request.addHeader("X-Forwarded-For", "192.168.1.100");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            trustedFilter.doFilter(request, response, new MockFilterChain());
+            assertEquals(200, response.getStatus());
+        }
+        // 21st from same forwarded IP should be blocked
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("X-Forwarded-For", "192.168.1.100");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        trustedFilter.doFilter(request, response, new MockFilterChain());
         assertEquals(429, response.getStatus());
     }
 

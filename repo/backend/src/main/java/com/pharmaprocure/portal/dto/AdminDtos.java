@@ -38,4 +38,7 @@ public final class AdminDtos {
 
     public record StateMachineConfigResponse(List<StateMachineTransitionResponse> transitions) {
     }
+
+    public record ResetUserPasswordRequest(@NotBlank String newPassword) {
+    }
 }

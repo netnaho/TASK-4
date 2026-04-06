@@ -3,6 +3,7 @@ package com.pharmaprocure.portal.controller;
 import com.pharmaprocure.portal.dto.AdminDtos.CreateReasonCodeRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.PermissionOverviewResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.ReasonCodeResponse;
+import com.pharmaprocure.portal.dto.AdminDtos.ResetUserPasswordRequest;
 import com.pharmaprocure.portal.dto.AdminDtos.StateMachineConfigResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.StateMachineTransitionResponse;
 import com.pharmaprocure.portal.dto.AdminDtos.UpdateUserAccessRequest;
@@ -43,6 +44,11 @@ public class AdminController {
     @PutMapping("/users/{id}")
     public ResponseEntity<UserVisibilityResponse> updateUserAccess(@PathVariable Long id, @Valid @RequestBody UpdateUserAccessRequest request) {
         return ResponseEntity.ok(adminService.updateUserAccess(id, request));
+    }
+
+    @PutMapping("/users/{id}/password")
+    public ResponseEntity<UserVisibilityResponse> resetUserPassword(@PathVariable Long id, @Valid @RequestBody ResetUserPasswordRequest request) {
+        return ResponseEntity.ok(adminService.resetUserPassword(id, request.newPassword()));
     }
 
     @GetMapping("/permissions")

@@ -19,12 +19,15 @@ run_step() {
 }
 
 echo "[1/4] Starting containers in detached mode"
-docker compose down -v --remove-orphans >/dev/null 2>&1 || true
-docker compose up -d --build
+# Use docker-compose.test.yml to raise the login rate limit to 60/min for the
+# test suite (26 logins across five API scripts from one host within 60 seconds).
+# The default docker-compose.yml keeps the hardened production value of 20/min.
+docker compose -f docker-compose.yml -f docker-compose.test.yml down -v --remove-orphans >/dev/null 2>&1 || true
+docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
 
 echo "[2/4] Waiting for services to report healthy"
 for i in $(seq 1 40); do
-  healthy_count=$(docker compose ps | grep -c "(healthy)" || true)
+  healthy_count=$(docker compose -f docker-compose.yml -f docker-compose.test.yml ps | grep -c "(healthy)" || true)
   if [ "$healthy_count" -ge 3 ]; then
     break
   fi

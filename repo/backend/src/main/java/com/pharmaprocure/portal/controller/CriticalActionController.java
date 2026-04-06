@@ -5,6 +5,7 @@ import com.pharmaprocure.portal.dto.CriticalActionDtos.CriticalActionDecisionReq
 import com.pharmaprocure.portal.dto.CriticalActionDtos.CriticalActionRequestResponse;
 import com.pharmaprocure.portal.enums.CriticalActionDecision;
 import com.pharmaprocure.portal.enums.CriticalActionStatus;
+import com.pharmaprocure.portal.exception.ApiException;
 import com.pharmaprocure.portal.security.UserPrincipal;
 import com.pharmaprocure.portal.service.CriticalActionService;
 import jakarta.validation.Valid;
@@ -56,6 +57,12 @@ public class CriticalActionController {
     @PostMapping("/{requestId}/decision")
     @PreAuthorize("@permissionAuth.hasPermission(authentication, 'CRITICAL_ACTION_APPROVE')")
     public ResponseEntity<CriticalActionRequestResponse> decide(@PathVariable Long requestId, @Valid @RequestBody CriticalActionDecisionRequest request) {
-        return ResponseEntity.ok(criticalActionService.decide(requestId, CriticalActionDecision.valueOf(request.decision().toUpperCase()), request.comments()));
+        CriticalActionDecision decision;
+        try {
+            decision = CriticalActionDecision.valueOf(request.decision().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, "Invalid decision value", List.of("decision=" + request.decision()));
+        }
+        return ResponseEntity.ok(criticalActionService.decide(requestId, decision, request.comments()));
     }
 }

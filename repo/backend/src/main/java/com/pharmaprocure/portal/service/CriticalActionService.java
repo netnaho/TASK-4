@@ -76,23 +76,36 @@ public class CriticalActionService {
     @Transactional
     public Page<CriticalActionRequestResponse> list(Pageable pageable, CriticalActionStatus statusFilter) {
         UserEntity actor = currentUserService.requireCurrentUser();
-        permissionAuthorizationService.requireDataScope(actor, Permission.CRITICAL_ACTION_VIEW);
-        Page<CriticalActionRequestEntity> requests = requestRepository.findAll(pageable);
-        List<CriticalActionRequestResponse> visible = requests.getContent().stream()
-            .filter(request -> statusFilter == null || request.getStatus() == statusFilter)
-            .filter(request -> canAccessTarget(actor, request, Permission.CRITICAL_ACTION_VIEW))
+        DataScope scope = permissionAuthorizationService.requireDataScope(actor, Permission.CRITICAL_ACTION_VIEW);
+
+        // Scope constraints pushed to the query so pagination totals are accurate.
+        Long requestedById = scope == DataScope.SELF ? actor.getId() : null;
+        String orgCode = scope == DataScope.ORGANIZATION ? actor.getOrganizationCode() : null;
+
+        Page<CriticalActionRequestEntity> page = requestRepository.findFiltered(requestedById, orgCode, statusFilter, pageable);
+        List<CriticalActionRequestResponse> content = page.getContent().stream()
             .map(request -> {
-            expireIfNeeded(request);
-            return toResponse(request);
-        }).toList();
-        return new PageImpl<>(visible, pageable, visible.size());
+                expireIfNeeded(request);
+                return toResponse(request);
+            }).toList();
+        return new PageImpl<>(content, pageable, page.getTotalElements());
     }
 
     @Transactional
     public CriticalActionRequestResponse create(CreateCriticalActionRequest request) {
         UserEntity actor = currentUserService.requireCurrentUser();
-        CriticalActionRequestType requestType = CriticalActionRequestType.valueOf(request.requestType());
-        CriticalActionTargetType targetType = CriticalActionTargetType.valueOf(request.targetType());
+        CriticalActionRequestType requestType;
+        CriticalActionTargetType targetType;
+        try {
+            requestType = CriticalActionRequestType.valueOf(request.requestType());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, "Invalid request type", List.of("requestType=" + request.requestType()));
+        }
+        try {
+            targetType = CriticalActionTargetType.valueOf(request.targetType());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, "Invalid target type", List.of("targetType=" + request.targetType()));
+        }
         validateTarget(requestType, targetType, request.targetId(), actor);
         requestRepository.findByRequestTypeAndTargetTypeAndTargetIdAndStatusIn(requestType, targetType, request.targetId(), List.of(CriticalActionStatus.PENDING, CriticalActionStatus.PARTIALLY_APPROVED))
             .ifPresent(existing -> { throw new ApiException(400, "Active critical action request already exists", List.of("requestId=" + existing.getId())); });

@@ -59,6 +59,11 @@ Expected result: all suites pass, services become healthy, and the test summary 
 
 ## Sample Test Users / Roles
 
+> **Local development only.** The credentials below are seeded for demo and testing purposes on a
+> single-machine Docker Compose stack. They are publicly known and **must never be used in any
+> internet-facing or production deployment**. Rotate all passwords and review role assignments
+> before exposing this application outside a trusted local network.
+
 - Shared password: `PortalAccess2026!`
 - Buyer: `buyer1`
 - Fulfillment Clerk: `fulfillment1`
@@ -193,6 +198,7 @@ Expected result: all suites pass, services become healthy, and the test summary 
 
 - `GET /api/admin/users`
 - `PUT /api/admin/users/{id}`
+- `PUT /api/admin/users/{id}/password` — admin password reset; enforces the password policy (≥ 12 chars, ≥ 3 character classes)
 - `GET /api/admin/permissions`
 - `GET /api/admin/state-machine`
 - `PUT /api/admin/state-machine/{id}`

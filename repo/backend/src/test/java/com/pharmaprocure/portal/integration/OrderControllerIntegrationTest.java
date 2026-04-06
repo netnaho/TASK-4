@@ -196,6 +196,21 @@ class OrderControllerIntegrationTest extends AbstractMockMvcIntegrationTest {
             .andExpect(jsonPath("$[?(@.code == 'DAMAGED_GOODS')]").isEmpty());
     }
 
+    @Test
+    void invalidReviewDecisionReturns400() throws Exception {
+        var quality = createUser(RoleName.QUALITY_REVIEWER, "quality-invalid-decision", "ORG-ALPHA", "Password!23");
+        var buyer = createUser(RoleName.BUYER, "buyer-invalid-decision", "ORG-ALPHA", "Password!23");
+        var order = createOrder(buyer, OrderStatus.UNDER_REVIEW, 5, 0, 0);
+
+        mockMvc.perform(post("/api/orders/{orderId}/approve", order.getId())
+                .with(authenticated(quality))
+                .with(csrf())
+                .contentType(APPLICATION_JSON)
+                .content(json(Map.of("decision", "YOLO", "comments", "test"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.details[0]").value("decision=YOLO"));
+    }
+
     private ReasonCodeEntity ensureReasonCode(String codeType, String code, String label) {
         return reasonCodeRepository.findByCodeTypeOrderByLabelAsc(codeType).stream()
             .filter(reason -> code.equals(reason.getCode()))

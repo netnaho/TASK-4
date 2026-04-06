@@ -16,6 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
 @EnableMethodSecurity
@@ -42,6 +43,24 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .cors(Customizer.withDefaults())
+            .headers(headers -> headers
+                // X-Content-Type-Options: nosniff — prevents MIME-type sniffing
+                .contentTypeOptions(Customizer.withDefaults())
+                // X-Frame-Options: DENY — also covered by frame-ancestors in CSP below
+                .frameOptions(frame -> frame.deny())
+                // Referrer-Policy: strict-origin-when-cross-origin
+                .referrerPolicy(referrer -> referrer.policy(
+                    ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                // Content-Security-Policy
+                // style-src includes 'unsafe-inline' because Angular Material injects
+                // component styles at runtime; all other sources are restricted to 'self'.
+                .contentSecurityPolicy(csp -> csp.policyDirectives(
+                    "default-src 'self'; " +
+                    "script-src 'self'; " +
+                    "style-src 'self' 'unsafe-inline'; " +
+                    "img-src 'self' data:; " +
+                    "font-src 'self'; " +
+                    "frame-ancestors 'none'")))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(cookieCsrfTokenRepository())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))

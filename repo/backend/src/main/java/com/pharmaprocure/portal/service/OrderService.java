@@ -206,7 +206,12 @@ public class OrderService {
     public OrderDetailResponse review(Long orderId, ReviewOrderRequest request) {
         ProcurementOrderEntity order = getManagedOrder(orderId, Permission.ORDER_APPROVE);
         UserEntity reviewer = currentUserService.requireCurrentUser();
-        ReviewDecision decision = ReviewDecision.valueOf(request.decision().toUpperCase());
+        ReviewDecision decision;
+        try {
+            decision = ReviewDecision.valueOf(request.decision().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, "Invalid review decision", List.of("decision=" + request.decision()));
+        }
         if (decision == ReviewDecision.REJECTED) {
             throw new ApiException(400, "Rejected orders are not supported in this phase", List.of("Use cancellation from under review if required"));
         }
