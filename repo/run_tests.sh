@@ -56,6 +56,12 @@ cleanup() {
   fi
   log "Tearing down test stack"
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  # Belt-and-suspenders: force-remove the fixed-name containers in case the
+  # compose down above could not find them (for example, because the prior
+  # invocation labeled them under a different compose project).
+  for name in pharmaprocure-postgres pharmaprocure-backend pharmaprocure-frontend; do
+    docker rm -f "$name" >/dev/null 2>&1 || true
+  done
   exit "$exit_code"
 }
 
@@ -83,9 +89,27 @@ build_test_tools_image() {
   docker build --quiet -t "$TEST_TOOLS_IMAGE" -f API_tests/Dockerfile API_tests >/dev/null
 }
 
+purge_stale_containers() {
+  # Our docker-compose.yml pins container_name for each service. If a prior
+  # run (or a run under a different compose project label) left a container
+  # with one of those fixed names behind, `compose up` fails with:
+  #   "The container name ... is already in use"
+  # `compose down` only touches containers labeled for the current project,
+  # so we explicitly force-remove the fixed names here to guarantee a clean
+  # slate regardless of how any previous run terminated.
+  local names=(pharmaprocure-postgres pharmaprocure-backend pharmaprocure-frontend)
+  for name in "${names[@]}"; do
+    if docker inspect "$name" >/dev/null 2>&1; then
+      log "Removing stale container '$name' from previous run"
+      docker rm -f "$name" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
 compose_up() {
   log "Starting containers (clean slate)"
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  purge_stale_containers
   "${COMPOSE[@]}" up -d --build
 }
 
