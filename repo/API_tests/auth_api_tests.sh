@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="http://localhost:8080"
+BASE_URL="${BASE_URL:-http://localhost:8080}"
 PASS=0
 FAIL=0
 TMP_DIR="$(mktemp -d)"

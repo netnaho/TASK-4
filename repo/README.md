@@ -1,16 +1,26 @@
 # PharmaProcure Compliance Procurement Portal
 
+**Project type: fullstack**
+
 PharmaProcure is an offline-capable compliance procurement portal built with Angular, Spring Boot, PostgreSQL, and Docker Compose. It delivers secure authentication, procurement lifecycle management, controlled documents, field evidence check-ins, and dual approval for compliance-critical actions.
 
 ## Project Overview
 
-- Full-stack local-network portal for regulated procurement operations
+- fullstack local-network portal for regulated procurement operations
 - Production-oriented Angular frontend with responsive enterprise UX
 - Spring Boot REST backend with layered architecture and defensive validation
 - PostgreSQL persistence with Flyway-managed schema and seed data
 - Docker Compose startup with no manual setup requirements
 
 ## Start Command
+
+Start the entire stack with a single command:
+
+```bash
+docker-compose up
+```
+
+The modern Docker CLI alias is also supported:
 
 ```bash
 docker compose up
@@ -26,36 +36,49 @@ docker compose up
 
 ## Verification Method
 
-1. Start the stack:
+The only host prerequisites are **bash** and **Docker / Docker Compose v2**. No host-local `python3`, `curl`, `node`, `java`, `maven`, or `psql` is required — every verification step runs inside Docker containers.
 
-   ```bash
-   docker compose up --build
-   ```
+Run the single Docker-contained verification command:
 
-2. Verify frontend and backend health:
+```bash
+bash run_tests.sh
+```
 
-   ```bash
-    curl http://localhost:8080/api/health
-    curl http://localhost:8080/api/meta/version
-   ```
+What this does, end-to-end, without any host language runtimes:
 
-3. Verify sample flows:
+1. Builds the `pharmaprocure-test-tools` image (`API_tests/Dockerfile` — alpine + bash + curl + python3 + postgres client) used to drive API/smoke scripts.
+2. Starts the full stack with `docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build` and waits for postgres, backend, and frontend to report healthy.
+3. Runs the smoke suite inside the test-tools container (`docker run --rm --network pharmaprocure_default ... bash /workspace/scripts/smoke_test.sh`).
+4. Runs backend unit tests inside a disposable Maven container (`docker run --rm -v $PWD/backend:/workspace maven:3.9.8-eclipse-temurin-17 mvn -q clean test`).
+5. Runs every API suite inside the test-tools container on the compose network:
+   - `bash /workspace/API_tests/auth_api_tests.sh`
+   - `bash /workspace/API_tests/order_lifecycle_api_tests.sh`
+   - `bash /workspace/API_tests/document_center_api_tests.sh`
+   - `bash /workspace/API_tests/checkins_api_tests.sh`
+   - `bash /workspace/API_tests/critical_actions_api_tests.sh`
+   - `bash /workspace/API_tests/coverage_api_tests.sh`
+6. Dumps diagnostic logs on failure and tears down all containers/volumes/networks on exit.
 
-   ```bash
-   ./API_tests/auth_api_tests.sh
-   ./API_tests/order_lifecycle_api_tests.sh
-   ./API_tests/document_center_api_tests.sh
-   ./API_tests/checkins_api_tests.sh
-   ./API_tests/critical_actions_api_tests.sh
-   ```
+To run an individual API suite ad-hoc, invoke it **inside the test-tools container** — never on the host:
 
-4. Run the full automated verification suite:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+docker build -t pharmaprocure-test-tools -f API_tests/Dockerfile API_tests
+docker run --rm --network pharmaprocure_default \
+  -e BASE_URL=http://backend:8080 \
+  -v "$PWD":/workspace -w /workspace \
+  pharmaprocure-test-tools \
+  bash /workspace/API_tests/auth_api_tests.sh
+```
 
-   ```bash
-   ./run_tests.sh
-   ```
+Health and version endpoints are likewise probed from inside the compose network rather than from the host:
 
-Expected result: all suites pass, services become healthy, and the test summary reports zero failures.
+```bash
+docker run --rm --network pharmaprocure_default pharmaprocure-test-tools \
+  sh -c 'curl -fsS http://backend:8080/api/health && curl -fsS http://backend:8080/api/meta/version'
+```
+
+Expected result: all suites pass, services become healthy, and the test summary reports zero failures. No `npm install`, `pip install`, `apt-get`, `mvn`, or manual database setup is required or supported — all tooling is containerized.
 
 ## Sample Test Users / Roles
 
@@ -210,8 +233,10 @@ Expected result: all suites pass, services become healthy, and the test summary 
 
 ## Test Command
 
+Run strictly through bash + Docker — no host runtimes needed:
+
 ```bash
-./run_tests.sh
+bash run_tests.sh
 ```
 
 ## Known Implementation Notes

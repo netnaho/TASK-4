@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="http://localhost:8080"
+BASE_URL="${BASE_URL:-http://localhost:8080}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 PASS=0
@@ -96,7 +96,7 @@ import json,sys; print(json.load(open(sys.argv[1]))['id'])
 PY
 )
 json_request POST "/api/critical-actions/$RET_REQ/decision" "$quality" '{"decision":"APPROVE","comments":"first"}' "$TMP_DIR/retention-approve1.json" >/dev/null
-docker exec pharmaprocure-postgres psql -U pharmaprocure -d pharmaprocure -c "update critical_action_requests set expires_at = now() - interval '1 hour', status = 'PARTIALLY_APPROVED' where id = $RET_REQ;" >/dev/null
+PGPASSWORD="${DB_PASSWORD:-pharmaprocure}" psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5433}" -U "${DB_USER:-pharmaprocure}" -d "${DB_NAME:-pharmaprocure}" -v ON_ERROR_STOP=1 -c "update critical_action_requests set expires_at = now() - interval '1 hour', status = 'PARTIALLY_APPROVED' where id = $RET_REQ;" >/dev/null
 code=$(curl -sS -o "$TMP_DIR/retention-get.json" -w "%{http_code}" -b "$finance" -c "$finance" "$BASE_URL/api/critical-actions/$RET_REQ")
 assert_status "$code" "200" "Expired critical action is still retrievable"
 if contains "$TMP_DIR/retention-get.json" '"status":"EXPIRED"'; then pass "Critical action expires after 24 hours"; else fail "Critical action expires after 24 hours"; fi

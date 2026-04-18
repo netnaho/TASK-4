@@ -1,8 +1,8 @@
 # Test-environment override for docker-compose.yml.
 #
-# Raises the login rate limit to accommodate the full run_tests.sh suite, which
-# drives all five API test scripts serially from a single host within one
-# 60-second window (~26 login requests from the same IP address).
+# Raises rate limits to accommodate the full run_tests.sh suite, which drives
+# six API test scripts (including the coverage sweep) serially from a single
+# test-tools container within one short window.
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
@@ -12,4 +12,5 @@
 services:
   backend:
     environment:
-      RATE_LIMIT_LOGIN_MAX_PER_MINUTE: 60
+      RATE_LIMIT_LOGIN_MAX_PER_MINUTE: 600
+      RATE_LIMIT_MAX_PER_MINUTE: 6000
